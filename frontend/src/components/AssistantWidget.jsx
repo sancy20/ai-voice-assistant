@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
+import { createWakeWord } from "../wakeword";
 
 const SERVER_WS = "http://localhost:3000";
 
@@ -7,12 +8,19 @@ export default function AssistantWidget() {
   const [connected, setConnected] = useState(false);
   const [captions, setCaptions] = useState("");
   const [partial, setPartial] = useState("");
+  const [isWakeTriggered, setIsWakeTriggered] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const socketRef = useRef(null);
   const mediaRef = useRef(null);
   const audioContextRef = useRef(null);
   const processorRef = useRef(null);
   const sourceRef = useRef(null);
   const recordingRef = useRef(false);
+  const wakeEngineRef = useRef(null);
+  const lastFinalRef = useRef("");
+  const pendingBytesRef = useRef(null);
+  const flushTimerRef = useRef(null);
 
   useEffect(() => {
     socketRef.current = io(SERVER_WS);
@@ -20,6 +28,55 @@ export default function AssistantWidget() {
       setConnected(true);
       console.log("Connected to gateway");
     });
+
+    // Initialize wake-word once on mount
+    (async () => {
+      try {
+        const detector = await createWakeWord(() => {
+          setIsWakeTriggered(true);
+          startRecording();
+        });
+        wakeEngineRef.current = detector;
+        console.log("Wake-word engine ready");
+      } catch (err) {
+        console.error("Wake-word init failed", err);
+      }
+    })();
+
+    // Listen for final transcripts from gateway
+    socketRef.current.on("final_transcript", ({ text, intent }) => {
+      if (intent) {
+        executeIntent(intent);
+      }
+    });
+
+    function executeIntent(intent) {
+      const [type, value] = intent;
+
+      if (type === "scroll") {
+        window.scrollBy({
+          top: value === "down" ? 300 : -300,
+          behavior: "smooth",
+        });
+      }
+
+      if (type === "search") {
+        const box = document.querySelector("input[type='search']");
+        if (box) {
+          box.value = value;
+          box.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      }
+
+      if (type === "navigate" && value === "home") {
+        window.location.href = "/";
+      }
+
+      if (type === "time") {
+        const label = value ? `Time: ${value}` : "Time request";
+        setCaptions((p) => (p ? p + " " : "") + label);
+      }
+    }
 
     const cleanTranscript = (txt) => {
       if (!txt) return "";
@@ -66,20 +123,53 @@ export default function AssistantWidget() {
     socketRef.current.on("partial_transcript", (data) => {
       console.log("partial_transcript (raw):", data?.text?.slice?.(0, 120));
       const cleaned = cleanTranscript(data.text);
-      if (cleaned) setPartial(cleaned);
+      if (!cleaned) return;
+      if (
+        lastFinalRef.current &&
+        cleaned.trim() === lastFinalRef.current.trim()
+      ) {
+        return;
+      }
+      setPartial(cleaned);
+      setIsSpeaking(true);
+      setIsProcessing(false);
     });
 
     socketRef.current.on("final_transcript", (data) => {
       console.log("final_transcript (raw):", data?.text?.slice?.(0, 200));
       const cleaned = cleanTranscript(data.text);
-      if (cleaned) {
-        setCaptions((p) => (p ? p + " " : "") + cleaned);
+      if (!cleaned) {
+        setPartial("");
+        return;
       }
+      const trimmed = cleaned.trim();
+      const lastFinal = lastFinalRef.current.trim();
+      const currentPartial = partial.trim();
+      if (trimmed && (trimmed === currentPartial || trimmed === lastFinal)) {
+        setPartial("");
+        return;
+      }
+      setCaptions((p) => {
+        const pTrim = (p || "").trim();
+        if (pTrim.endsWith(trimmed)) {
+          return p;
+        }
+        return (pTrim ? pTrim + " " : "") + trimmed;
+      });
+      lastFinalRef.current = trimmed;
       setPartial("");
+      setIsSpeaking(false);
+      setIsProcessing(false);
     });
 
     return () => {
       socketRef.current.disconnect();
+      try {
+        if (wakeEngineRef.current) {
+          wakeEngineRef.current.terminate?.();
+          wakeEngineRef.current = null;
+        }
+      } catch (_) {}
     };
   }, []);
 
@@ -124,15 +214,43 @@ export default function AssistantWidget() {
           silent.connect(audioContextRef.current.destination);
           node.port.onmessage = (event) => {
             const buffer = event.data;
-            if (socketRef.current && socketRef.current.connected) {
-              socketRef.current.emit("audio_chunk", new Uint8Array(buffer));
+            const chunk = new Uint8Array(buffer);
+            const prev = pendingBytesRef.current;
+            if (prev && prev.length) {
+              const merged = new Uint8Array(prev.length + chunk.length);
+              merged.set(prev, 0);
+              merged.set(chunk, prev.length);
+              pendingBytesRef.current = merged;
+            } else {
+              pendingBytesRef.current = chunk;
+            }
+            if (!flushTimerRef.current) {
+              flushTimerRef.current = setTimeout(() => {
+                try {
+                  const toSend = pendingBytesRef.current;
+                  pendingBytesRef.current = null;
+                  if (
+                    toSend &&
+                    toSend.length &&
+                    socketRef.current &&
+                    socketRef.current.connected
+                  ) {
+                    socketRef.current.emit("audio_chunk", toSend);
+                  }
+                } finally {
+                  flushTimerRef.current = null;
+                }
+              }, 50);
+            }
+            if (recordingRef.current && !partial) {
+              setIsProcessing(true);
             }
           };
         } catch (workletErr) {
           console.warn("AudioWorklet init failed, falling back:", workletErr);
           const bufferSize = 4096;
           const node = audioContextRef.current.createScriptProcessor(
-            bufferSize,
+            1024,
             1,
             1
           );
@@ -153,19 +271,43 @@ export default function AssistantWidget() {
                 "bytes=",
                 int16.byteLength
               );
-            if (socketRef.current && socketRef.current.connected) {
-              socketRef.current.emit("audio_chunk", new Uint8Array(int16));
+            const chunk = new Uint8Array(int16);
+            const prev = pendingBytesRef.current;
+            if (prev && prev.length) {
+              const merged = new Uint8Array(prev.length + chunk.length);
+              merged.set(prev, 0);
+              merged.set(chunk, prev.length);
+              pendingBytesRef.current = merged;
+            } else {
+              pendingBytesRef.current = chunk;
+            }
+            if (!flushTimerRef.current) {
+              flushTimerRef.current = setTimeout(() => {
+                try {
+                  const toSend = pendingBytesRef.current;
+                  pendingBytesRef.current = null;
+                  if (
+                    toSend &&
+                    toSend.length &&
+                    socketRef.current &&
+                    socketRef.current.connected
+                  ) {
+                    socketRef.current.emit("audio_chunk", toSend);
+                  }
+                } finally {
+                  flushTimerRef.current = null;
+                }
+              }, 50);
+            }
+            if (recordingRef.current && !partial) {
+              setIsProcessing(true);
             }
           };
         }
       } else {
         console.warn("AudioWorklet not supported, using ScriptProcessor");
-        const bufferSize = 4096;
-        const node = audioContextRef.current.createScriptProcessor(
-          bufferSize,
-          1,
-          1
-        );
+        const bufferSize = 2048;
+        const node = audioContextRef.current.createScriptProcessor(1024, 1, 1);
         processorRef.current = node;
         sourceRef.current.connect(node);
         node.connect(audioContextRef.current.destination);
@@ -183,8 +325,36 @@ export default function AssistantWidget() {
               "bytes=",
               int16.byteLength
             );
-          if (socketRef.current && socketRef.current.connected) {
-            socketRef.current.emit("audio_chunk", new Uint8Array(int16));
+          const chunk = new Uint8Array(int16);
+          const prev = pendingBytesRef.current;
+          if (prev && prev.length) {
+            const merged = new Uint8Array(prev.length + chunk.length);
+            merged.set(prev, 0);
+            merged.set(chunk, prev.length);
+            pendingBytesRef.current = merged;
+          } else {
+            pendingBytesRef.current = chunk;
+          }
+          if (!flushTimerRef.current) {
+            flushTimerRef.current = setTimeout(() => {
+              try {
+                const toSend = pendingBytesRef.current;
+                pendingBytesRef.current = null;
+                if (
+                  toSend &&
+                  toSend.length &&
+                  socketRef.current &&
+                  socketRef.current.connected
+                ) {
+                  socketRef.current.emit("audio_chunk", toSend);
+                }
+              } finally {
+                flushTimerRef.current = null;
+              }
+            }, 50);
+          }
+          if (recordingRef.current && !partial) {
+            setIsProcessing(true);
           }
         };
       }
@@ -230,6 +400,24 @@ export default function AssistantWidget() {
         });
       }
     } catch (err) {}
+    try {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      const toSend = pendingBytesRef.current;
+      pendingBytesRef.current = null;
+      if (
+        toSend &&
+        toSend.length &&
+        socketRef.current &&
+        socketRef.current.connected
+      ) {
+        socketRef.current.emit("audio_chunk", toSend);
+      }
+    } catch (_) {}
+    setIsSpeaking(false);
+    setIsProcessing(false);
   };
 
   function floatTo16BitPCM(float32Array) {
@@ -264,6 +452,14 @@ export default function AssistantWidget() {
         }}
       >
         <h4>Web Voice Assistant</h4>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ fontSize: 12, color: "#9CA3AF" }}>
+            Status: {connected ? "Connected" : "Disconnected"}
+          </div>
+          {(isWakeTriggered || recordingRef.current) && (
+            <div className='mic-pulse' title='Listening' />
+          )}
+        </div>
         <div
           style={{
             height: 80,
@@ -289,6 +485,8 @@ export default function AssistantWidget() {
             onClick={() => {
               setCaptions("");
               setPartial("");
+              setIsSpeaking(false);
+              setIsProcessing(false);
             }}
             style={{ padding: 8, borderRadius: 8 }}
           >
@@ -296,7 +494,15 @@ export default function AssistantWidget() {
           </button>
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: "#9CA3AF" }}>
-          Status: {connected ? "Connected" : "Disconnected"}
+          Wake: {isWakeTriggered ? "Listening…" : "Sleeping"}
+          {" · "}
+          {isSpeaking ? (
+            <span style={{ color: "#34D399" }}>Speaking…</span>
+          ) : isProcessing ? (
+            <span style={{ color: "#F59E0B" }}>Processing…</span>
+          ) : (
+            <span>Idle</span>
+          )}
         </div>
       </div>
     </div>

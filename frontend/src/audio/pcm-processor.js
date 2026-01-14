@@ -5,7 +5,7 @@ class PCMProcessor extends AudioWorkletProcessor {
       return true;
     }
 
-    const channelData = input[0]; // mono
+    const channelData = input[0];
     const len = channelData.length;
     const buffer = new ArrayBuffer(len * 2);
     const view = new DataView(buffer);
@@ -15,7 +15,6 @@ class PCMProcessor extends AudioWorkletProcessor {
       view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
     }
 
-    // Transfer the buffer for zero-copy to main thread
     this.port.postMessage(buffer, [buffer]);
 
     return true;

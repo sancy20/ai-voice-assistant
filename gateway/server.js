@@ -10,23 +10,29 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const AI_SERVICE_HTTP = "http://localhost:8000";
+
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 60000);
+
 const axiosClient = axios.create({
   httpAgent: new http.Agent({ keepAlive: true }),
 });
 
 io.on("connection", (socket) => {
   console.log("client connected", socket.id);
+
   const sessionDir = path.join(__dirname, "sessions", socket.id);
   fs.mkdirSync(sessionDir, { recursive: true });
+
   let chunkIndex = 0;
   let sampleRate = 48000;
+
   const queue = [];
   let inflight = false;
 
   socket.on("audio_meta", (meta) => {
     if (meta && typeof meta.sampleRate === "number" && meta.sampleRate > 0) {
       sampleRate = meta.sampleRate;
-      console.log("session", socket.id, "sampleRate=", sampleRate);
+      console.log("session", socket.id, "sampleRate =", sampleRate);
     }
   });
 
@@ -35,9 +41,10 @@ io.on("connection", (socket) => {
       inflight = false;
       return;
     }
+
     inflight = true;
     const buffer = queue.shift();
-    // call AI microservice to process this chunk (non-blocking)
+
     try {
       const resp = await axiosClient.post(
         `${AI_SERVICE_HTTP}/transcribe_chunk`,
@@ -45,13 +52,15 @@ io.on("connection", (socket) => {
         {
           headers: {
             "Content-Type": "application/octet-stream",
-            "X-Session-Id": socket.id,
+            "X-Session-ID": socket.id,
             "X-Sample-Rate": String(sampleRate),
           },
-          timeout: 5000,
+          timeout: AI_TIMEOUT_MS,
         }
       );
+
       const data = resp.data;
+
       if (data?.rms !== undefined && data?.peak !== undefined) {
         if (chunkIndex % 10 === 0) {
           console.log("ai_service metrics:", {
@@ -61,37 +70,41 @@ io.on("connection", (socket) => {
           });
         }
       }
+
       if (data.partial) {
         socket.emit("partial_transcript", { text: data.partial });
       }
+
       if (data.final) {
-        try {
-          const preview = String(data.final).replace(/\s+/g, " ").slice(0, 120);
-          console.log("final from ai:", preview);
-        } catch (e) {}
+        const preview = String(data.final).replace(/\s+/g, " ").slice(0, 120);
+        console.log("final from ai:", preview);
+
         socket.emit("final_transcript", {
           text: data.final,
           intent: data.intent || null,
         });
       }
     } catch (err) {
-      console.error("AI service error", err.message);
+      console.error("AI service error:", err.message);
     } finally {
       setImmediate(processNext);
     }
   }
 
   socket.on("audio_chunk", async (arrayBuffer) => {
-    const filename = path.join(sessionDir, `chunk_${chunkIndex++}.pcm`);
     const buffer = Buffer.from(arrayBuffer);
     if (!buffer || buffer.length === 0) {
       console.warn("Received empty audio chunk");
       return;
     }
-    if (chunkIndex % 10 === 0) {
-      console.log("audio_chunk bytes=", buffer.length);
-    }
+
+    const filename = path.join(sessionDir, `chunk_${chunkIndex++}.pcm`);
     fs.writeFileSync(filename, buffer);
+
+    if (chunkIndex % 10 === 0) {
+      console.log("audio_chunk bytes =", buffer.length);
+    }
+
     queue.push(buffer);
     if (!inflight) processNext();
   });
