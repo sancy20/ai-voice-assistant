@@ -10,7 +10,6 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const AI_SERVICE_HTTP = "http://localhost:8000";
-
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 60000);
 
 const axiosClient = axios.create({
@@ -28,17 +27,43 @@ io.on("connection", (socket) => {
 
   const queue = [];
   let inflight = false;
+  let pendingFlush = false;
 
   socket.on("audio_meta", (meta) => {
     if (meta && typeof meta.sampleRate === "number" && meta.sampleRate > 0) {
       sampleRate = meta.sampleRate;
-      console.log("session", socket.id, "sampleRate =", sampleRate);
+      console.log("session", socket.id, "sampleRate=", sampleRate);
     }
   });
+
+  async function doFlush() {
+    try {
+      const resp = await axiosClient.post(`${AI_SERVICE_HTTP}/flush`, null, {
+        headers: { "X-Session-ID": socket.id },
+        timeout: AI_TIMEOUT_MS,
+      });
+
+      const data = resp.data;
+      if (data?.final) {
+        socket.emit("final_transcript", {
+          text: data.final,
+          intent: data.intent || null,
+          intent_details: data.intent_details || null,
+        });
+      }
+    } catch (err) {
+      console.error("flush error:", err.message);
+    }
+  }
 
   async function processNext() {
     if (queue.length === 0) {
       inflight = false;
+
+      if (pendingFlush) {
+        pendingFlush = false;
+        await doFlush();
+      }
       return;
     }
 
@@ -76,12 +101,10 @@ io.on("connection", (socket) => {
       }
 
       if (data.final) {
-        const preview = String(data.final).replace(/\s+/g, " ").slice(0, 120);
-        console.log("final from ai:", preview);
-
         socket.emit("final_transcript", {
           text: data.final,
           intent: data.intent || null,
+          intent_details: data.intent_details || null,
         });
       }
     } catch (err) {
@@ -91,7 +114,7 @@ io.on("connection", (socket) => {
     }
   }
 
-  socket.on("audio_chunk", async (arrayBuffer) => {
+  socket.on("audio_chunk", (arrayBuffer) => {
     const buffer = Buffer.from(arrayBuffer);
     if (!buffer || buffer.length === 0) {
       console.warn("Received empty audio chunk");
@@ -102,11 +125,20 @@ io.on("connection", (socket) => {
     fs.writeFileSync(filename, buffer);
 
     if (chunkIndex % 10 === 0) {
-      console.log("audio_chunk bytes =", buffer.length);
+      console.log("audio_chunk bytes=", buffer.length);
     }
 
     queue.push(buffer);
     if (!inflight) processNext();
+  });
+
+  socket.on("audio_end", () => {
+    pendingFlush = true;
+
+    if (!inflight && queue.length === 0) {
+      pendingFlush = false;
+      doFlush();
+    }
   });
 
   socket.on("disconnect", () => {

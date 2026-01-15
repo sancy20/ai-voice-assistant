@@ -1,36 +1,47 @@
 from fastapi import FastAPI, Request, Header
 from fastapi.responses import JSONResponse
-import os, uuid, subprocess, time, threading, wave
-import numpy as np
 from starlette.requests import ClientDisconnect
 
-# Optional: faster-whisper (keeps model in-memory for lower latency)
-USE_FASTER = os.getenv("USE_FASTER_WHISPER", "0") in ("1", "true", "True")
-FAST_MODEL = None
+import os, uuid, subprocess, wave, re
+import numpy as np
+from datetime import datetime
+
 try:
-    if USE_FASTER:
-        from faster_whisper import WhisperModel
-        fw_model_name = os.getenv("FW_MODEL", "tiny.en")
-        fw_device = os.getenv("FW_DEVICE", "cpu")
-        fw_compute_type = os.getenv("FW_COMPUTE", "int8")
-        # Load once and reuse
-        FAST_MODEL = WhisperModel(fw_model_name, device=fw_device, compute_type=fw_compute_type)
-        print(f"[faster-whisper] Loaded model '{fw_model_name}' on {fw_device} ({fw_compute_type})")
-except Exception as e:
-    print("[faster-whisper] Disabled due to error:", e)
-    FAST_MODEL = None
-    USE_FASTER = False
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
+
+def get_local_tz():
+    if ZoneInfo is not None:
+        try:
+            return ZoneInfo("Asia/Phnom_Penh")
+        except Exception:
+            pass
+    from datetime import timezone, timedelta
+    return timezone(timedelta(hours=7))
+
+LOCAL_TZ = get_local_tz()
 
 app = FastAPI()
 
-SESSIONS_DIR = "./sessions"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+SESSIONS_DIR = os.path.join(BASE_DIR, "sessions")
 os.makedirs(SESSIONS_DIR, exist_ok=True)
-WHISPER_BIN = "./whisper.cpp/whisper_bin/whisper-cli.exe"
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-_DEFAULT_MODEL_PATH = os.path.normpath(
-    os.path.join(_BASE_DIR, "..", "models", "ggml-tiny.en.bin")
+
+WHISPER_BIN = os.path.normpath(os.path.join(BASE_DIR, "whisper.cpp", "whisper_bin", "whisper-cli.exe"))
+
+WHISPER_MODEL = os.getenv(
+    "WHISPER_MODEL",
+    os.path.normpath(os.path.join(BASE_DIR, "..", "models", "ggml-tiny.en.bin"))
 )
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", _DEFAULT_MODEL_PATH)
+
+print("[DEBUG] CWD:", os.getcwd())
+print("[DEBUG] WHISPER_BIN:", WHISPER_BIN, "exists =", os.path.isfile(WHISPER_BIN))
+print("[DEBUG] WHISPER_MODEL:", WHISPER_MODEL, "exists =", os.path.isfile(WHISPER_MODEL))
+
+# Target sample-rate for better whisper.cpp behavior
+TARGET_SR = int(os.getenv("TARGET_SR", "16000"))
 
 session_text = {}
 last_run_samples = {}
@@ -40,12 +51,14 @@ voice_active_flags = {}
 silence_ms_accum = {}
 preroll_buffers = {}
 
-TARGET_SR = int(os.getenv("TARGET_SR", "16000"))
+# store last seen sample rate per session for /flush
+session_sample_rate = {}
 
 def _bytes_to_i16(raw: bytes) -> np.ndarray:
     return np.frombuffer(raw or b"", dtype=np.int16)
 
 def resample_i16_mono(x: np.ndarray, src_sr: int, dst_sr: int) -> np.ndarray:
+    """Lightweight linear resampler for mono int16."""
     if x.size == 0 or src_sr <= 0 or dst_sr <= 0 or src_sr == dst_sr:
         return x
     ratio = float(dst_sr) / float(src_sr)
@@ -62,96 +75,203 @@ def write_wav_i16(path: str, i16: np.ndarray, sr: int) -> None:
         wf.setframerate(int(sr))
         wf.writeframes(i16.tobytes())
 
-def get_intent(text: str):
-    try:
-        t = (text or "").lower()
-        if "scroll down" in t:
-            return ("scroll", "down")
-        if "scroll up" in t:
-            return ("scroll", "up")
-        if "search for" in t:
-            try:
-                term = t.split("search for", 1)[1].strip()
-            except Exception:
-                term = ""
-            return ("search", term)
-        if "go home" in t:
-            return ("nav", "home")
-        if "open settings" in t:
-            return ("nav", "settings")
-    except Exception:
-        pass
-    return ("none", "")
-
 def run_whisper_on_file(wav_path: str) -> str:
-    if USE_FASTER and FAST_MODEL is not None:
-        try:
-            segments, _info = FAST_MODEL.transcribe(wav_path, beam_size=1, vad_filter=False)
-            parts = []
-            for seg in segments:
-                s = (seg.text or "").strip()
-                if s:
-                    parts.append(s)
-            return " ".join(parts).strip()
-        except Exception as e:
-            print("faster-whisper transcribe error:", e)
-            return ""
-        
-    try:
-        if not os.path.isfile(WHISPER_BIN):
-            print(f"whisper binary not found at: {WHISPER_BIN}")
-        if not os.path.isfile(WHISPER_MODEL):
-            print(f"whisper model not found at: {WHISPER_MODEL}")
-    except Exception:
-        pass
+    """
+    Runs whisper.cpp CLI and returns ONLY clean transcript text.
+    """
+    if not os.path.isfile(WHISPER_BIN):
+        print("[ERROR] whisper binary missing:", WHISPER_BIN)
+        return ""
+    if not os.path.isfile(WHISPER_MODEL):
+        print("[ERROR] whisper model missing:", WHISPER_MODEL)
+        return ""
+
+    cmd = [
+        WHISPER_BIN,
+        "-m", WHISPER_MODEL,
+        "-f", wav_path,
+        "-l", "en",
+        "-nt",
+    ]
 
     def extract_transcript(raw: str) -> str:
         lines = raw.splitlines()
-        out_parts = []
+        out = []
         for ln in lines:
             s = ln.strip()
             if not s:
                 continue
-            if s.startswith('whisper_') or s.startswith('whisper ') or s.startswith('whisper:'):
-                continue
-            if s.startswith('system_info'):
-                continue
-            if '[BLANK_AUDIO]' in s:
-                continue
-            if ']' in s and '[' in s and '-->' in s:
-                try:
-                    part = s.split('] ', 1)[1]
-                    if part.strip():
-                        out_parts.append(part.strip())
-                    continue
-                except Exception:
-                    pass
-            if s.startswith('main:') and ' - ' in s:
-                try:
-                    part = s.split(' - ', 1)[1].strip()
-                    if part:
-                        out_parts.append(part)
-                    continue
-                except Exception:
-                    pass
-            # fallback
-            out_parts.append(s)
 
-        return " ".join(out_parts).strip()
+            if s.startswith((
+                "whisper",
+                "main:",
+                "system_info",
+                "threads",
+                "processors",
+                "beam",
+                "lang =",
+                "task =",
+                "timestamps",
+            )):
+                continue
+
+            # Drop timestamped format if any remain
+            if "[" in s and "]" in s and "-->" in s:
+                try:
+                    s = s.split("] ", 1)[1].strip()
+                except Exception:
+                    continue
+
+            # Final safety: keep only real words
+            if any(c.isalpha() for c in s):
+                out.append(s)
+
+        return " ".join(out).strip()
 
     try:
-        cmd = [
-            WHISPER_BIN,
-            "-m", WHISPER_MODEL,
-            "-f", wav_path,
-        ]
-        p = subprocess.run(cmd, capture_output=True, text=True)
-        raw = (p.stdout or "") + "\n" + (p.stderr or "")
-        transcript = extract_transcript(raw)
-        return transcript
+        out = subprocess.check_output(
+            cmd,
+            stderr=subprocess.STDOUT,
+            timeout=45
+        )
+        raw = out.decode(errors="ignore")
+        return extract_transcript(raw)
+
     except Exception as e:
-        print("whisper.cpp run error:", e)
+        print("[ERROR] whisper call failed:", e)
         return ""
+
+def _normalize_text(text: str) -> str:
+    t = (text or "").lower().strip()
+    t = re.sub(r"[\.,!?;:\(\)\[\]\{\}\"']", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+def predict_intent_rule_based(text: str) -> dict:
+    """
+    Returns:
+      {
+        "intent": "scroll" | "search" | "navigate" | "time" | "none",
+        "slots": { ... },
+        "confidence": float (0..1)
+      }
+    """
+    t = _normalize_text(text)
+    if not t:
+        return {"intent": "none", "slots": {}, "confidence": 0.0}
+
+    # TIME
+    if (
+        re.search(r"\b(what|tell)\s+me\s+the\s+time\b", t)
+        or re.search(r"\bwhat\s+time\s+is\s+it\b", t)
+        or re.search(r"\bcurrent\s+time\b", t)
+    ):
+        now = datetime.now(LOCAL_TZ).strftime("%H:%M:%S")
+        return {"intent": "time", "slots": {"time": now}, "confidence": 0.95}
+
+    # SCROLL
+    m = re.search(r"\b(scroll|page|go)\s+(down|up)\b", t)
+    if m:
+        direction = m.group(2)
+        return {"intent": "scroll", "slots": {"direction": direction, "amount": 300}, "confidence": 0.92}
+
+    if re.search(r"\b(scroll|go)\s+to\s+top\b", t) or re.search(r"\btop\s+of\s+page\b", t):
+        return {"intent": "scroll", "slots": {"direction": "up", "amount": 999999}, "confidence": 0.90}
+
+    if re.search(r"\b(scroll|go)\s+to\s+bottom\b", t) or re.search(r"\bbottom\s+of\s+page\b", t):
+        return {"intent": "scroll", "slots": {"direction": "down", "amount": 999999}, "confidence": 0.90}
+
+    # SEARCH
+    m = re.search(r"\b(search\s+for|find|look\s+up)\s+(.+)$", t)
+    if m:
+        q = (m.group(2) or "").strip()
+        q = re.sub(r"\b(please|now|thanks)\b$", "", q).strip()
+        return {"intent": "search", "slots": {"query": q}, "confidence": 0.90 if q else 0.70}
+
+    # NAVIGATE
+    if re.search(r"\b(go\s+home|home\s+page|back\s+to\s+home)\b", t):
+        return {"intent": "navigate", "slots": {"target": "home"}, "confidence": 0.90}
+
+    if re.search(r"\b(open|go\s+to)\s+settings\b", t):
+        return {"intent": "navigate", "slots": {"target": "settings"}, "confidence": 0.88}
+
+    if re.search(r"\b(go\s+back|back)\b", t):
+        return {"intent": "navigate", "slots": {"target": "back"}, "confidence": 0.82}
+
+    return {"intent": "none", "slots": {}, "confidence": 0.2}
+
+def intent_to_widget_tuple(pred: dict):
+    """
+    Convert prediction to your frontend format:
+      ("scroll","down"), ("search","cats"), ("navigate","home"), ("time","12:00:00")
+    """
+    it = pred.get("intent", "none")
+    slots = pred.get("slots", {}) or {}
+
+    if it == "scroll":
+        direction = slots.get("direction", "")
+        if direction in ("up", "down"):
+            return ("scroll", direction)
+        return None
+
+    if it == "search":
+        q = slots.get("query", "")
+        return ("search", q)
+
+    if it == "navigate":
+        target = slots.get("target", "")
+        return ("navigate", target)
+
+    if it == "time":
+        return ("time", slots.get("time", ""))
+
+    return None
+
+@app.post("/predict/intent")
+async def predict_intent_endpoint(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    transcript = (payload.get("transcript") or "").strip()
+    pred = predict_intent_rule_based(transcript)
+    return JSONResponse(pred)
+
+@app.post("/flush")
+async def flush(x_session_id: str | None = Header(None)):
+    if not x_session_id:
+        return JSONResponse({"ok": False, "reason": "missing session id"})
+
+    utt_buf = utterance_buffers.get(x_session_id, b"")
+    if not utt_buf:
+        return JSONResponse({"ok": True, "final": "", "intent": None, "intent_details": {"intent": "none", "slots": {}, "confidence": 0.0}})
+
+    sr = int(session_sample_rate.get(x_session_id, 48000))
+
+    session_dir = os.path.join(SESSIONS_DIR, x_session_id)
+    os.makedirs(session_dir, exist_ok=True)
+    utt_wav = os.path.join(session_dir, "utterance.wav")
+
+    utt_i16 = _bytes_to_i16(utt_buf)
+    utt_16k = resample_i16_mono(utt_i16, sr, TARGET_SR)
+    write_wav_i16(utt_wav, utt_16k, TARGET_SR)
+
+    transcript = run_whisper_on_file(utt_wav)
+
+    # reset
+    utterance_buffers[x_session_id] = b""
+    silence_ms_accum[x_session_id] = 0.0
+    voice_active_flags[x_session_id] = False
+
+    pred = predict_intent_rule_based(transcript)
+    widget_intent = intent_to_widget_tuple(pred)
+
+    return JSONResponse({
+        "ok": True,
+        "final": transcript,
+        "intent": widget_intent,
+        "intent_details": pred,
+    })
 
 @app.post("/transcribe_chunk")
 async def transcribe_chunk(
@@ -171,37 +291,35 @@ async def transcribe_chunk(
     session_dir = os.path.join(SESSIONS_DIR, session_id)
     os.makedirs(session_dir, exist_ok=True)
 
-    # body is raw int16 PCM mono
-    rms = None
-    peak = None
-    try:
-        if body and len(body) >= 2:
-            chunk_i16 = np.frombuffer(body, dtype=np.int16)
-            if chunk_i16.size > 0:
-                f = chunk_i16.astype(np.float32) / 32768.0
-                rms = float(np.sqrt(np.mean(f * f)))
-                peak = int(np.max(np.abs(chunk_i16)))
-            else:
-                rms, peak = 0.0, 0
-        else:
-            rms, peak = 0.0, 0
-    except Exception:
-        rms, peak = -1.0, -1
-
+    # Parse sample rate
     try:
         sample_rate = int(x_sample_rate) if x_sample_rate else 48000
     except Exception:
         sample_rate = 48000
 
-    # --- Simple VAD/state for full-utterance decoding ---
-    # Tune these for your microphone/environment.
+    session_sample_rate[session_id] = sample_rate
+
+    # Calculate RMS/peak
+    try:
+        chunk_i16 = np.frombuffer(body, dtype=np.int16)
+        if chunk_i16.size > 0:
+            rms = float(np.sqrt(np.mean((chunk_i16.astype(np.float32) / 32768.0) ** 2)))
+            peak = int(np.max(np.abs(chunk_i16)))
+        else:
+            rms, peak = 0.0, 0
+    except Exception:
+        rms, peak = -1.0, -1
+
+    # VAD parameters
     VOICE_ON_RMS = float(os.getenv("VOICE_ON_RMS", "0.0004"))
     VOICE_OFF_RMS = float(os.getenv("VOICE_OFF_RMS", "0.00025"))
     VOICE_PEAK_ON = int(os.getenv("VOICE_PEAK_ON", "200"))
     VOICE_PEAK_OFF = int(os.getenv("VOICE_PEAK_OFF", "120"))
+
     SILENCE_TIMEOUT_MS = float(os.getenv("SILENCE_TIMEOUT_MS", "1500"))
     UTTERANCE_MAX_MS = float(os.getenv("UTTERANCE_MAX_MS", "15000"))
     PREROLL_MS = float(os.getenv("PREROLL_MS", "400"))
+
     max_utt_bytes = int(sample_rate * (UTTERANCE_MAX_MS / 1000.0)) * 2
 
     chunk_samples = len(body) // 2
@@ -212,59 +330,57 @@ async def transcribe_chunk(
     utt_buf = utterance_buffers.get(session_id, b"")
     sil_ms = float(silence_ms_accum.get(session_id, 0.0) or 0.0)
 
-    # Start/continue utterance when voice or low-level audio present
-    # Always maintain a short preroll buffer to capture leading phonemes
+    # preroll buffer
     pr_max_bytes = int(sample_rate * (PREROLL_MS / 1000.0)) * 2
     pr = preroll_buffers.get(session_id, b"")
     pr = (pr + body)[-pr_max_bytes:]
     preroll_buffers[session_id] = pr
 
+    # utterance accumulation
     if is_voice or (rms is not None and rms >= 0.0002 and chunk_samples > 0):
         voice_active_flags[session_id] = True
         silence_ms_accum[session_id] = 0.0
-        # Accumulate utterance buffer with cap
+
         if not prev_voice and len(utt_buf) == 0 and len(pr) > 0:
             utt_buf = (utt_buf + pr + body)[-max_utt_bytes:]
         else:
             utt_buf = (utt_buf + body)[-max_utt_bytes:]
+
         utterance_buffers[session_id] = utt_buf
     else:
         if prev_voice or len(utt_buf) > 0:
             sil_ms += chunk_ms
             silence_ms_accum[session_id] = sil_ms
-            # If silence exceeds timeout, finalize utterance
+
             if sil_ms >= SILENCE_TIMEOUT_MS and len(utt_buf) > 0:
                 try:
                     utt_wav = os.path.join(session_dir, "utterance.wav")
-
-                    # Resample to 16 kHz mono int16 for whisper.cpp.
                     utt_i16 = _bytes_to_i16(utt_buf)
-                    utt_i16_16k = resample_i16_mono(utt_i16, sample_rate, TARGET_SR)
-                    write_wav_i16(utt_wav, utt_i16_16k, TARGET_SR)
-
+                    utt_16k = resample_i16_mono(utt_i16, sample_rate, TARGET_SR)
+                    write_wav_i16(utt_wav, utt_16k, TARGET_SR)
                     transcript = run_whisper_on_file(utt_wav)
                 except Exception as e:
                     print("utterance finalize error", e)
                     transcript = ""
-                # Reset utterance state regardless
+
+                # reset
                 voice_active_flags[session_id] = False
                 utterance_buffers[session_id] = b""
                 silence_ms_accum[session_id] = 0.0
 
                 if transcript:
-                    prev = session_text.get(session_id, "")
-                    if transcript != prev:
-                        session_text[session_id] = transcript
-                    intent = get_intent(transcript)
+                    pred = predict_intent_rule_based(transcript)
+                    widget_intent = intent_to_widget_tuple(pred)
                     return JSONResponse({
                         "final": transcript,
-                        "intent": intent,
+                        "intent": widget_intent,
+                        "intent_details": pred,
                         "rms": rms,
                         "peak": peak,
                         "bytes": len(body),
                     })
 
-    # --- Rolling partial decoding for responsiveness ---
+    # rolling partial decoding
     window_sec = 0.8
     max_bytes = int(sample_rate * window_sec) * 2
     rb = rolling_buffers.get(session_id, b"")
@@ -272,8 +388,9 @@ async def transcribe_chunk(
     rolling_buffers[session_id] = rb
 
     wav_path = os.path.join(session_dir, "stream.wav")
+    raw_bytes = rb
+
     try:
-        raw_bytes = rb
         if raw_bytes:
             i16 = _bytes_to_i16(raw_bytes)
             i16_16k = resample_i16_mono(i16, sample_rate, TARGET_SR)
@@ -281,20 +398,12 @@ async def transcribe_chunk(
     except Exception as e:
         print("pcm->wav error", e)
 
-    total_samples = 0
-    try:
-        total_samples = len(raw_bytes) // 2 if raw_bytes else 0
-    except Exception:
-        total_samples = 0
-
-    sr_for_guard = TARGET_SR
-
-    if total_samples < max(1, sr_for_guard // 20):
+    total_samples = len(raw_bytes) // 2 if raw_bytes else 0
+    if total_samples < max(1, TARGET_SR // 20):
         return JSONResponse({"partial": "", "rms": rms, "peak": peak, "bytes": len(body)})
 
     prev_samples = last_run_samples.get(session_id, 0)
-
-    min_delta = max(1, sr_for_guard // 10)
+    min_delta = max(1, TARGET_SR // 10)
     has_enough_new = (total_samples - prev_samples) >= min_delta
 
     has_voice = False
@@ -309,20 +418,14 @@ async def transcribe_chunk(
 
     transcript = run_whisper_on_file(wav_path)
     last_run_samples[session_id] = total_samples
+
     prev = session_text.get(session_id, "")
     if transcript and transcript != prev:
         session_text[session_id] = transcript
-        intent = get_intent(transcript)
-        return JSONResponse({
-            "partial": transcript,
-            "rms": rms,
-            "peak": peak,
-            "bytes": len(body),
-        })
-    else:
-        return JSONResponse({
-            "partial": transcript or "",
-            "rms": rms,
-            "peak": peak,
-            "bytes": len(body),
-        })
+
+    return JSONResponse({
+        "partial": transcript or "",
+        "rms": rms,
+        "peak": peak,
+        "bytes": len(body),
+    })

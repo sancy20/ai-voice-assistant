@@ -366,47 +366,16 @@ export default function AssistantWidget() {
   const stopRecording = () => {
     if (!recordingRef.current) return;
     recordingRef.current = false;
-    try {
-      const proc = processorRef.current;
-      if (proc) {
-        try {
-          if (proc.port && typeof proc.port.onmessage === "function")
-            proc.port.onmessage = null;
-          if (proc.onaudioprocess) proc.onaudioprocess = null;
-        } catch (_) {}
-        try {
-          proc.disconnect();
-        } catch (_) {}
-        processorRef.current = null;
-      }
-      const src = sourceRef.current;
-      if (src) {
-        try {
-          src.disconnect();
-        } catch (_) {}
-        sourceRef.current = null;
-      }
-      const ctx = audioContextRef.current;
-      if (ctx && ctx.state !== "closed") {
-        Promise.resolve(ctx.close()).catch(() => {});
-      }
-      audioContextRef.current = null;
-      const stream = mediaRef.current;
-      if (stream && stream.getTracks) {
-        stream.getTracks().forEach((t) => {
-          try {
-            t.stop();
-          } catch (_) {}
-        });
-      }
-    } catch (err) {}
+
     try {
       if (flushTimerRef.current) {
         clearTimeout(flushTimerRef.current);
         flushTimerRef.current = null;
       }
+
       const toSend = pendingBytesRef.current;
       pendingBytesRef.current = null;
+
       if (
         toSend &&
         toSend.length &&
@@ -416,6 +385,50 @@ export default function AssistantWidget() {
         socketRef.current.emit("audio_chunk", toSend);
       }
     } catch (_) {}
+
+    if (socketRef.current && socketRef.current.connected) {
+      setTimeout(() => {
+        socketRef.current.emit("audio_end");
+      }, 80);
+    }
+
+    try {
+      const proc = processorRef.current;
+      if (proc) {
+        try {
+          if (proc.port) proc.port.onmessage = null;
+          if (proc.onaudioprocess) proc.onaudioprocess = null;
+        } catch (_) {}
+        try {
+          proc.disconnect();
+        } catch (_) {}
+        processorRef.current = null;
+      }
+
+      const src = sourceRef.current;
+      if (src) {
+        try {
+          src.disconnect();
+        } catch (_) {}
+        sourceRef.current = null;
+      }
+
+      const ctx = audioContextRef.current;
+      if (ctx && ctx.state !== "closed") {
+        Promise.resolve(ctx.close()).catch(() => {});
+      }
+      audioContextRef.current = null;
+
+      const stream = mediaRef.current;
+      if (stream && stream.getTracks) {
+        stream.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch (_) {}
+        });
+      }
+    } catch (_) {}
+
     setIsSpeaking(false);
     setIsProcessing(false);
   };
