@@ -1,0 +1,68 @@
+text,intent
+scroll down,scroll
+scroll up,scroll
+go down,scroll
+go up,scroll
+page down,scroll
+page up,scroll
+scroll to bottom,scroll
+scroll to top,scroll
+move down,scroll
+move up,scroll
+
+go home,navigate
+open home page,navigate
+home page,navigate
+go to home,navigate
+go back,navigate
+back,navigate
+return back,navigate
+open settings,navigate
+go to settings,navigate
+
+search for cat,search
+search for laptop,search
+search for chatgpt,search
+find cat,search
+find laptop,search
+look up cat,search
+look up laptop,search
+search news about ai,search
+find information about python,search
+
+what time is it,time
+tell me the time,time
+current time,time
+time now,time
+what is the time,time
+
+open chatgpt,open
+open openai,open
+open youtube,open
+open google,open
+open github,open
+open gmail,open
+open facebook,open
+open wikipedia,open
+open google maps,open
+go to chatgpt,open
+go to youtube,open
+go to google,open
+
+help,help
+what can you do,help
+show commands,help
+list commands,help
+how to use,help
+help me,help
+
+hello,none
+hi,none
+good morning,none
+good afternoon,none
+how are you,none
+thank you,none
+nice to meet you,none
+this is a random sentence,none
+i like pizza,none
+tell me a story,none
