@@ -7,16 +7,20 @@ const axios = require("axios");
 
 const app = express();
 app.use(express.json());
+
 const cors = require("cors");
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({ origin: true, credentials: true }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*" },
+  cors: { origin: true, credentials: true },
 });
 
 const AI_SERVICE_HTTP = process.env.AI_SERVICE_HTTP || "http://localhost:8000";
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 60000);
+
+const MAX_QUEUE = Number(process.env.MAX_QUEUE || 40);
+const SAVE_CHUNKS = String(process.env.SAVE_CHUNKS || "0") === "1";
 
 const axiosClient = axios.create({
   httpAgent: new http.Agent({ keepAlive: true }),
@@ -24,9 +28,7 @@ const axiosClient = axios.create({
 
 const MODELS_DIR_CANDIDATES = [
   path.join(__dirname, "..", "models"),
-  // fallback: gateway/models
   path.join(__dirname, "models"),
-  // fallback: process cwd
   path.join(process.cwd(), "models"),
 ];
 
@@ -69,7 +71,6 @@ function listModels() {
     });
   }
 
-  // stable sort: small -> big, then name
   out.sort((a, b) => a.sizeBytes - b.sizeBytes || a.key.localeCompare(b.key));
   return out;
 }
@@ -78,15 +79,14 @@ function pickDefaultModelKey(models) {
   const envDefault = (process.env.DEFAULT_MODEL_KEY || "").trim();
   if (envDefault && models.some((m) => m.key === envDefault)) return envDefault;
 
-  // Prefer base.en if present, else first
   const base =
     models.find((m) => m.key === "base.en") ||
     models.find((m) => m.key === "base");
   if (base) return base.key;
+
   return models[0]?.key || "";
 }
 
-// HTTP: frontend uses this to populate a model dropdown
 app.get("/models", (req, res) => {
   const models = listModels();
   res.json({
@@ -103,38 +103,67 @@ app.get("/health", (req, res) => {
 io.on("connection", (socket) => {
   console.log("client connected", socket.id);
 
-  // Keep per-socket session folder for debug
   const sessionDir = path.join(__dirname, "sessions", socket.id);
   fs.mkdirSync(sessionDir, { recursive: true });
 
   let chunkIndex = 0;
   let sampleRate = 48000;
 
-  // model selection (from frontend)
+  // Model selection
   const availableAtConnect = listModels();
   let modelKey = pickDefaultModelKey(availableAtConnect);
 
-  // Simple sequential queue so ai_service isn't hammered in parallel
+  let wakeMode = "ptt";
   const queue = [];
   let inflight = false;
   let pendingFlush = false;
 
   socket.on("audio_meta", (meta) => {
+    // sample rate
     if (meta && typeof meta.sampleRate === "number" && meta.sampleRate > 0) {
       sampleRate = meta.sampleRate;
       console.log("session", socket.id, "sampleRate=", sampleRate);
     }
 
+    // modelKey
     if (meta && typeof meta.modelKey === "string") {
       const requested = meta.modelKey.trim();
-      if (!requested) return;
+      if (requested) {
+        const models = listModels();
+        if (models.some((m) => m.key === requested)) {
+          modelKey = requested;
+          console.log("session", socket.id, "modelKey=", modelKey);
+        } else if (
+          requested === "base" &&
+          models.some((m) => m.key === "base.en")
+        ) {
+          modelKey = "base.en";
+          console.log(
+            "session",
+            socket.id,
+            "modelKey=",
+            modelKey,
+            "(alias from 'base')"
+          );
+        } else if (requested === "") {
+        } else {
+          console.warn("session", socket.id, "unknown modelKey:", requested);
+        }
+      }
+    }
 
-      const models = listModels();
-      if (models.some((m) => m.key === requested)) {
-        modelKey = requested;
-        console.log("session", socket.id, "modelKey=", modelKey);
-      } else {
-        console.warn("session", socket.id, "unknown modelKey:", requested);
+    if (meta) {
+      if (typeof meta.wakeMode === "string") {
+        const m = meta.wakeMode.trim().toLowerCase();
+        if (m === "wake" || m === "ptt") {
+          wakeMode = m;
+          console.log("session", socket.id, "wakeMode=", wakeMode);
+          socket.emit("wake_mode", { mode: wakeMode });
+        }
+      } else if (typeof meta.wakeMode === "boolean") {
+        wakeMode = meta.wakeMode ? "wake" : "ptt";
+        console.log("session", socket.id, "wakeMode=", wakeMode);
+        socket.emit("wake_mode", { mode: wakeMode });
       }
     }
   });
@@ -150,7 +179,6 @@ io.on("connection", (socket) => {
       });
 
       const data = resp.data || {};
-
       socket.emit("final_transcript", {
         text: data.final || "",
         intent: data.intent || null,
@@ -193,24 +221,39 @@ io.on("connection", (socket) => {
             "X-Session-ID": socket.id,
             "X-Sample-Rate": String(sampleRate),
             "X-Model-Key": modelKey,
+            "X-Wake-Mode": wakeMode, // "wake" or "ptt"
           },
           timeout: AI_TIMEOUT_MS,
         }
       );
 
       const data = resp.data || {};
-
-      if (data.partial) {
-        socket.emit("partial_transcript", { text: data.partial });
+      if (data.wake === "detected") {
+        socket.emit("wake_event", {
+          type: "detected",
+          prob: data.wake_prob ?? null,
+          awake_for_sec: data.awake_for_sec ?? null,
+        });
+      } else if (data.wake === "listening") {
       }
 
-      if (data.final) {
+      // partial transcript
+      if (data.partial) {
+        socket.emit("partial_transcript", {
+          text: data.partial,
+          awake: data.awake ?? null,
+        });
+      }
+
+      if (Object.prototype.hasOwnProperty.call(data, "final")) {
         socket.emit("final_transcript", {
-          text: data.final,
+          text: data.final || "",
           intent: data.intent || null,
           intent_details: data.intent_details || null,
           done: false,
-          reason: "segment_final",
+          reason:
+            data.reason || (data.final ? "segment_final" : "segment_empty"),
+          awake: data.awake ?? null,
         });
       }
     } catch (err) {
@@ -224,13 +267,18 @@ io.on("connection", (socket) => {
     const buffer = Buffer.from(arrayBuffer);
     if (!buffer || buffer.length === 0) return;
 
-    // Debug save
-    try {
-      const filename = path.join(sessionDir, `chunk_${chunkIndex++}.pcm`);
-      fs.writeFileSync(filename, buffer);
-    } catch (_) {}
+    if (SAVE_CHUNKS) {
+      try {
+        const filename = path.join(sessionDir, `chunk_${chunkIndex++}.pcm`);
+        fs.writeFileSync(filename, buffer);
+      } catch (_) {}
+    }
 
     queue.push(buffer);
+    if (queue.length > MAX_QUEUE) {
+      queue.splice(0, queue.length - MAX_QUEUE);
+    }
+
     if (!inflight) processNext();
   });
 
