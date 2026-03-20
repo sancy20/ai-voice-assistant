@@ -17,7 +17,7 @@ A **real-time, local AI voice assistant** that listens from the browser, detects
 
 ---
 
-# 📌 Key Features
+## 📌 Key Features
 
 - 🎤 Real-time microphone streaming (Web Audio API)
 - 🧠 Wake word detection (local model)
@@ -81,7 +81,7 @@ Backend (FastAPI)
 
 ---
 
-# ⚙️ Requirements
+## ⚙️ Requirements
 
 ## System
 
@@ -92,7 +92,7 @@ Backend (FastAPI)
 
 ---
 
-# 🚀 Setup Guide
+## 🚀 Setup Guide
 
 ## 1️⃣ Clone project
 
@@ -167,7 +167,7 @@ http://localhost:5173
 
 ---
 
-# 🔄 System Flow
+## 🔄 System Flow
 
 Wake Mode:
 Sleep → Detect Wake → Arm → Capture → Process → Execute → Sleep
