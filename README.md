@@ -119,10 +119,11 @@ pip install -r requirements.txt
 ## 3️⃣ Add required models (MANDATORY)
 
 Place Whisper models in:
-
+```
 models/
 ├── ggml-base.en.bin
 ├── ggml-tiny.en.bin
+```
 
 ---
 
