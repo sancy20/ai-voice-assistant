@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { io } from "socket.io-client";
 import { Settings as SettingsIcon, Mic, Wifi, WifiOff } from "lucide-react";
 import { emitAction } from "./actionBus";
-
-const SOCKET_URL = import.meta.env.VITE_GATEWAY_URL;
 
 // display durations (ms)
 const SHOW_SPEECH_MS = 12000;
@@ -11,7 +8,7 @@ const SHOW_ACTION_MS = 10000; // action label / result
 const SHOW_SCROLL_MS = 10000;
 
 export default function AssistantWidget() {
-  const socketRef = useRef(null);
+  const sessionIdRef = useRef(crypto?.randomUUID?.() || `sess_${Date.now()}`);
 
   const [connStatus, setConnStatus] = useState("Disconnected");
   const [assistantStatus, setAssistantStatus] = useState("Sleeping");
@@ -43,6 +40,10 @@ export default function AssistantWidget() {
   const [audioLevel, setAudioLevel] = useState(0);
   const audioLevelRef = useRef(0);
   const rafRef = useRef(null);
+  const wsRef = useRef(null);
+
+  const wakeEnabledRef = useRef(false);
+  const [wakeEnabled, setWakeEnabled] = useState(false);
 
   const SAFE_OPEN_SITES = useMemo(
     () => ({
@@ -52,7 +53,7 @@ export default function AssistantWidget() {
       github: "https://github.com/",
       wikipedia: "https://www.wikipedia.org/",
     }),
-    []
+    [],
   );
 
   const wakeStatus = useMemo(() => {
@@ -64,41 +65,245 @@ export default function AssistantWidget() {
     wakeStatus === "Disconnected"
       ? "bg-white/5 text-white/70 ring-white/10"
       : wakeStatus === "Awake"
-      ? "bg-emerald-500/10 text-emerald-200 ring-emerald-400/20"
-      : "bg-sky-500/10 text-sky-200 ring-sky-400/20";
+        ? "bg-emerald-500/10 text-emerald-200 ring-emerald-400/20"
+        : "bg-sky-500/10 text-sky-200 ring-sky-400/20";
 
   const wakeStatusText =
     wakeStatus === "Disconnected"
       ? "Wake Word: Disconnected"
       : wakeStatus === "Awake"
-      ? "Wake Word: Awake"
-      : "Wake Word: Sleeping";
+        ? "Wake Word: Awake"
+        : "Wake Word: Sleeping";
 
   const loadModels = async () => {
-    try {
-      const res = await fetch("http://localhost:3000/models");
-      const data = await res.json();
-      const list = Array.isArray(data.models) ? data.models : [];
-      setModels(list);
+    setModels([
+      { key: "base.en", label: "base.en" },
+      { key: "tiny.en", label: "tiny.en" },
+    ]);
+    setSelectedModel((prev) => prev || "base.en");
+  };
 
-      const defaultKey =
-        (typeof data.defaultKey === "string" && data.defaultKey) ||
-        (list[0] && list[0].key) ||
-        "base";
+  const setStatusSafe = (status) => {
+    setAssistantStatus((prev) => (prev === status ? prev : status));
+  };
 
-      setSelectedModel((prev) => prev || defaultKey);
-    } catch {
-      setModels([{ key: "base", label: "base" }]);
-      setSelectedModel((prev) => prev || "base");
+  const handleBackendResponse = (data) => {
+    if (!data || typeof data !== "object") return;
+
+    if (data.type === "wake_listening") {
+      if (holdForceActiveRef.current) return;
+      return;
+    }
+
+    if (data.type === "wake_detected") {
+      awakeUntilRef.current = Date.now() + 9000;
+      setStatusSafe("Listening");
+      return;
+    }
+
+    if (data.type === "listening") {
+      setStatusSafe("Listening");
+      return;
+    }
+
+    if (data.type === "armed_after_wake") {
+      setStatusSafe("Listening");
+      return;
+    }
+
+    if (data.type === "idle" || data.type === "awake_idle") {
+      return;
+    }
+
+    if (data.type === "no_speech" || data.type === "empty") {
+      if (holdForceActiveRef.current) return;
+      if (Date.now() < awakeUntilRef.current) return;
+
+      awakeUntilRef.current = 0;
+      setStatusSafe("Sleeping");
+      return;
+    }
+
+    if (data.type === "final") {
+      const text = data.transcript || "";
+      const widget = data.widget;
+
+      setFinalText(text);
+      setPartial("");
+      setStatusSafe("Processing");
+
+      if (text) {
+        emitAction({ text, kind: "say", durationMs: SHOW_SPEECH_MS });
+      }
+
+      if (Array.isArray(widget) && widget.length) {
+        const [type, value] = widget;
+
+        if (type === "scroll") {
+          emitAction({
+            text: value === "up" ? "Scroll up" : "Scroll down",
+            kind: value === "up" ? "scroll_up" : "scroll_down",
+            durationMs: SHOW_SCROLL_MS,
+          });
+        } else if (type === "navigate") {
+          emitAction({
+            text:
+              value === "home"
+                ? "Go home"
+                : value === "back"
+                  ? "Go back"
+                  : `Navigate: ${value || ""}`,
+            kind: "action",
+            durationMs: SHOW_ACTION_MS,
+          });
+        } else if (type === "open") {
+          emitAction({
+            text: `Open: ${value || ""}`.trim(),
+            kind: "action",
+            durationMs: SHOW_ACTION_MS,
+          });
+        } else if (type === "search") {
+          emitAction({
+            text: `Search: ${value || ""}`.trim(),
+            kind: "search",
+            durationMs: SHOW_ACTION_MS,
+          });
+        } else if (type === "time") {
+          emitAction({
+            text: value ? `Time: ${value}` : "Time",
+            kind: "action",
+            durationMs: SHOW_ACTION_MS,
+          });
+        }
+
+        setTimeout(() => executeIntent(widget), 650);
+      }
+
+      setTimeout(() => {
+        if (!holdForceActiveRef.current) {
+          awakeUntilRef.current = 0;
+          setStatusSafe("Sleeping");
+        }
+      }, 900);
+
+      return;
     }
   };
 
-  const sendAudioMeta = (ctxSampleRate, wakeMode) => {
-    socketRef.current?.emit("audio_meta", {
-      sampleRate: ctxSampleRate,
-      modelKey: selectedModel || "base",
-      wakeMode,
-    });
+  const connectWebSocket = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
+
+    const ws = new WebSocket("ws://127.0.0.1:8000/ws/audio");
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = () => {
+      setConnStatus("Connected");
+
+      ws.send(
+        JSON.stringify({
+          type: "config",
+          session_id: sessionIdRef.current,
+          sample_rate: audioContextRef.current?.sampleRate || 16000,
+          model_key: selectedModel || "base.en",
+          wake_mode: holdForceActiveRef.current
+            ? "ptt"
+            : wakeEnabledRef.current
+              ? "wake"
+              : "ptt",
+        }),
+      );
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleBackendResponse(
+          data,
+          holdForceActiveRef.current ? "ptt" : "wake",
+        );
+      } catch (err) {
+        console.error("ws message parse error", err);
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error("ws error", err);
+      setConnStatus("Disconnected");
+    };
+
+    ws.onclose = () => {
+      setConnStatus("Disconnected");
+    };
+
+    wsRef.current = ws;
+  };
+
+  const stopAudioPipeline = async () => {
+    try {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+
+      pendingBytesRef.current = null;
+
+      if (processorRef.current) {
+        try {
+          processorRef.current.port.onmessage = null;
+          processorRef.current.disconnect();
+        } catch {}
+        processorRef.current = null;
+      }
+
+      if (sourceRef.current) {
+        try {
+          sourceRef.current.disconnect();
+        } catch {}
+        sourceRef.current = null;
+      }
+
+      if (zeroGainRef.current) {
+        try {
+          zeroGainRef.current.disconnect();
+        } catch {}
+        zeroGainRef.current = null;
+      }
+
+      if (mediaRef.current) {
+        try {
+          mediaRef.current.getTracks().forEach((t) => t.stop());
+        } catch {}
+        mediaRef.current = null;
+      }
+
+      if (audioContextRef.current) {
+        try {
+          await audioContextRef.current.close();
+        } catch {}
+        audioContextRef.current = null;
+      }
+
+      recordingRef.current = false;
+      micStartedOnceRef.current = false;
+      audioLevelRef.current = 0;
+      setAudioLevel(0);
+      stopAudioLevelLoop();
+    } catch (err) {
+      console.error("stopAudioPipeline error", err);
+    }
+  };
+
+  const sendChunkToBackend = (bytes) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(bytes);
+  };
+
+  const flushBackend = async () => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    ws.send(JSON.stringify({ type: "flush" }));
   };
 
   const executeIntent = (intentTuple) => {
@@ -126,6 +331,19 @@ export default function AssistantWidget() {
       if (!url) return;
       window.open(url, "_blank", "noopener,noreferrer");
     }
+
+    if (type === "search") {
+      const query = String(value || "").trim();
+      if (!query) return;
+
+      const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (type === "time") {
+      return;
+    }
   };
 
   const clearUI = () => {
@@ -139,7 +357,7 @@ export default function AssistantWidget() {
     const tick = () => {
       const v = audioLevelRef.current;
       setAudioLevel((prev) =>
-        Math.max(0, Math.min(100, Math.round(prev * 0.85 + v * 0.15)))
+        Math.max(0, Math.min(100, Math.round(prev * 0.85 + v * 0.15))),
       );
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -163,7 +381,6 @@ export default function AssistantWidget() {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     audioContextRef.current = ctx;
 
-    sendAudioMeta(ctx.sampleRate, "wake");
     await ctx.audioWorklet.addModule("/pcm-processor.js");
 
     const src = ctx.createMediaStreamSource(stream);
@@ -191,7 +408,7 @@ export default function AssistantWidget() {
       }
       audioLevelRef.current = Math.max(
         audioLevelRef.current,
-        (maxAbs / 32768) * 100
+        (maxAbs / 32768) * 100,
       );
 
       if (!pendingBytesRef.current) pendingBytesRef.current = chunk;
@@ -208,11 +425,14 @@ export default function AssistantWidget() {
           flushTimerRef.current = null;
           const toSend = pendingBytesRef.current;
           pendingBytesRef.current = null;
-          if (toSend?.byteLength && socketRef.current?.connected) {
-            socketRef.current.emit("audio_chunk", toSend);
+          const shouldSend =
+            holdForceActiveRef.current || wakeEnabledRef.current;
+
+          if (toSend?.byteLength && shouldSend) {
+            sendChunkToBackend(toSend);
           }
           audioLevelRef.current *= 0.35;
-        }, 50);
+        }, 200);
       }
     };
 
@@ -224,7 +444,19 @@ export default function AssistantWidget() {
     worklet.connect(zeroGain);
     zeroGain.connect(ctx.destination);
 
-    setAssistantStatus("Sleeping");
+    wsRef.current?.send(
+      JSON.stringify({
+        type: "config",
+        session_id: sessionIdRef.current,
+        sample_rate: audioContextRef.current?.sampleRate || 16000,
+        model_key: selectedModel || "base.en",
+        wake_mode: holdForceActiveRef.current
+          ? "ptt"
+          : wakeEnabledRef.current
+            ? "wake"
+            : "ptt",
+      }),
+    );
   };
 
   const ensureMicStarted = async () => {
@@ -237,177 +469,128 @@ export default function AssistantWidget() {
     }
   };
 
-  // socket connect
-  useEffect(() => {
-    if (socketRef.current) return;
+  const enableWakeMode = async () => {
+    try {
+      await ensureMicStarted();
 
-    const socket = io(SOCKET_URL, {
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 300,
-      reconnectionDelayMax: 2000,
-      timeout: 8000,
-    });
+      wakeEnabledRef.current = true;
+      setWakeEnabled(true);
 
-    socketRef.current = socket;
+      wsRef.current?.send(
+        JSON.stringify({
+          type: "config",
+          session_id: sessionIdRef.current,
+          sample_rate: audioContextRef.current?.sampleRate || 16000,
+          model_key: selectedModel || "base.en",
+          wake_mode: "wake",
+        }),
+      );
 
-    socket.on("connect", () => {
-      setConnStatus("Connected");
-      loadModels();
-      emitAction({ text: "Connected", kind: "wake", durationMs: 1800 });
-    });
-
-    socket.on("disconnect", () => {
-      setConnStatus("Disconnected");
-      setAssistantStatus("Sleeping");
+      setStatusSafe("Sleeping");
+      emitAction({ text: "Wake mode enabled", kind: "wake", durationMs: 1800 });
+    } catch {
       emitAction({
-        text: "Disconnected",
+        text: "Mic start failed",
         kind: "disconnect",
         durationMs: 2500,
       });
-    });
+    }
+  };
 
-    socket.on("wake_event", (payload) => {
-      if (payload?.type === "detected") {
-        const awakeMs = Math.max(
-          1200,
-          Math.round((payload?.awake_for_sec ?? 9) * 1000)
-        );
-        awakeUntilRef.current = Date.now() + awakeMs;
-        emitAction({ text: "Awake", kind: "wake", durationMs: 2000 });
-        if (!holdForceActiveRef.current) setAssistantStatus("Listening");
-      }
-    });
+  const disableWakeMode = async () => {
+    wakeEnabledRef.current = false;
+    setWakeEnabled(false);
+    awakeUntilRef.current = 0;
+    setStatusSafe("Sleeping");
 
-    socket.on("partial_transcript", (payload) => {
-      const allow =
-        holdForceActiveRef.current || Date.now() < awakeUntilRef.current;
-      if (!allow) return;
-      setPartial(payload?.text || "");
-      setAssistantStatus("Listening");
-    });
-
-    socket.on("final_transcript", (payload) => {
-      const text = payload?.text || "";
-      const intent = payload?.intent || null;
-
-      setFinalText(text);
-      setPartial("");
-      setAssistantStatus("Processing");
-      if (text) emitAction({ text, kind: "say", durationMs: SHOW_SPEECH_MS });
-
-      if (Array.isArray(intent) && intent.length) {
-        const [type, value] = intent;
-
-        if (type === "scroll") {
-          emitAction({
-            text: value === "up" ? "Scroll up" : "Scroll down",
-            kind: value === "up" ? "scroll_up" : "scroll_down",
-            durationMs: SHOW_SCROLL_MS,
-          });
-        } else if (type === "navigate") {
-          emitAction({
-            text:
-              value === "home"
-                ? "Go home"
-                : value === "back"
-                ? "Go back"
-                : `Navigate: ${value || ""}`,
-            kind: "action",
-            durationMs: SHOW_ACTION_MS,
-          });
-        } else if (type === "open") {
-          emitAction({
-            text: `Open: ${value || ""}`.trim(),
-            kind: "action",
-            durationMs: SHOW_ACTION_MS,
-          });
-        } else if (type === "search") {
-          emitAction({
-            text: `Search: ${value || ""}`.trim(),
-            kind: "search",
-            durationMs: SHOW_ACTION_MS,
-          });
-        } else if (type === "time") {
-          const t = (value || "").trim();
-          emitAction({
-            text: t ? `Time: ${t}` : "Time",
-            kind: "action",
-            durationMs: SHOW_ACTION_MS,
-          });
-        } else if (type === "help") {
-          emitAction({
-            text: "Help / Commands",
-            kind: "action",
-            durationMs: SHOW_ACTION_MS,
-          });
-        } else if (type === "none") {
-        } else {
-          emitAction({
-            text: "Action",
-            kind: "action",
-            durationMs: SHOW_ACTION_MS,
-          });
-        }
-
-        setTimeout(() => executeIntent(intent), 650);
-      }
-
-      setTimeout(() => setAssistantStatus("Sleeping"), 750);
-
-      if (holdForceActiveRef.current) {
-        holdForceActiveRef.current = false;
-        setIsHolding(false);
-        const ctx = audioContextRef.current;
-        if (ctx) sendAudioMeta(ctx.sampleRate, "wake");
-      }
-    });
-
-    return () => {
-      try {
-        socket.disconnect();
-      } catch {}
-    };
-  }, [SAFE_OPEN_SITES]);
+    if (!holdForceActiveRef.current) {
+      await stopAudioPipeline();
+    }
+  };
 
   useEffect(() => {
-    const ctx = audioContextRef.current;
-    if (!ctx || connStatus !== "Connected") return;
-    const mode = holdForceActiveRef.current ? "ptt" : "wake";
-    sendAudioMeta(ctx.sampleRate, mode);
+    setConnStatus("Connecting");
+    loadModels();
+    connectWebSocket();
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    ws.send(
+      JSON.stringify({
+        type: "config",
+        session_id: sessionIdRef.current,
+        sample_rate: audioContextRef.current?.sampleRate || 16000,
+        model_key: selectedModel || "base.en",
+        wake_mode: holdForceActiveRef.current
+          ? "ptt"
+          : wakeEnabledRef.current
+            ? "wake"
+            : "ptt",
+      }),
+    );
   }, [selectedModel]);
 
   const onHoldStart = async () => {
-    setIsHolding(true);
     holdForceActiveRef.current = true;
-
-    emitAction({ text: "Listening…", kind: "ptt", durationMs: 2000 });
+    wakeEnabledRef.current = false;
+    setWakeEnabled(false);
+    awakeUntilRef.current = 0;
+    setIsHolding(true);
 
     await ensureMicStarted();
 
-    const ctx = audioContextRef.current;
-    if (ctx && socketRef.current?.connected) {
-      socketRef.current.emit("ptt_start");
-      sendAudioMeta(ctx.sampleRate, "ptt");
-    }
+    wsRef.current?.send(
+      JSON.stringify({
+        type: "config",
+        session_id: sessionIdRef.current,
+        sample_rate: audioContextRef.current?.sampleRate || 16000,
+        model_key: selectedModel || "base.en",
+        wake_mode: "ptt",
+      }),
+    );
 
-    setAssistantStatus("Listening");
+    setStatusSafe("Listening");
   };
 
-  const onHoldEnd = () => {
+  const onHoldEnd = async () => {
     setIsHolding(false);
-    setAssistantStatus("Processing");
 
-    if (socketRef.current?.connected) {
-      socketRef.current.emit("audio_end");
-    } else {
+    try {
+      setStatusSafe("Processing");
+      await flushBackend();
+    } catch {
       emitAction({
         text: "Not connected",
         kind: "disconnect",
         durationMs: 2500,
       });
-      setAssistantStatus("Sleeping");
+      setStatusSafe("Sleeping");
+    } finally {
+      holdForceActiveRef.current = false;
+
+      if (wakeEnabledRef.current) {
+        wsRef.current?.send(
+          JSON.stringify({
+            type: "config",
+            session_id: sessionIdRef.current,
+            sample_rate: audioContextRef.current?.sampleRate || 16000,
+            model_key: selectedModel || "base.en",
+            wake_mode: "wake",
+          }),
+        );
+      } else {
+        await stopAudioPipeline();
+      }
     }
   };
 
@@ -546,6 +729,12 @@ export default function AssistantWidget() {
           </div>
 
           <div className='px-5 pb-5'>
+            <button
+              onClick={wakeEnabled ? disableWakeMode : enableWakeMode}
+              className='mb-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/90 hover:bg-white/10'
+            >
+              {wakeEnabled ? "Disable Wake Mode" : "Enable Wake Mode"}
+            </button>
             <button
               onMouseDown={onHoldStart}
               onMouseUp={onHoldEnd}

@@ -1,1 +1,1 @@
-ai_service/venv/** filter=lfs diff=lfs merge=lfs -text
+backend/venv/** filter=lfs diff=lfs merge=lfs -text

@@ -1,12 +1,9 @@
 # 🎙️ AI Voice Assistant for Web
 
-A **local, web-based AI voice assistant** that performs real-time speech recognition and executes browser actions using a **trained intent recognition model**.
+A **real-time, local AI voice assistant** that listens from the browser, detects a wake word, converts speech to text, predicts intent using a trained ML model, and executes actions directly in the browser.
 
-This project demonstrates a complete **AI pipeline**:
-
-> **Speech → Text → Intent (trained ML model) → Action**
-
-Built with **open-source models**, **local inference**, and a real working system suitable for academic evaluation.
+> **Pipeline:**  
+> **Audio → Wake Word → Speech-to-Text → Intent Model → Browser Action**
 
 ---
 
@@ -17,6 +14,18 @@ Built with **open-source models**, **local inference**, and a real working syste
 - Perform **local speech-to-text inference** (no cloud APIs)
 - Execute browser actions based on user voice commands
 - Deliver a complete AI system for **Semester 1 practicum**
+
+---
+
+# 📌 Key Features
+
+- 🎤 Real-time microphone streaming (Web Audio API)
+- 🧠 Wake word detection (local model)
+- 🗣️ Speech-to-text using Whisper (`whisper.cpp`)
+- 🤖 Custom trained intent classification model
+- 🌐 Browser action execution (search, scroll, open site)
+- ⚡ WebSocket streaming (low latency)
+- 🔒 Fully local (no cloud APIs)
 
 ---
 
@@ -61,79 +70,76 @@ This model satisfies the requirement to **train and deploy an AI model**.
 ## 🏗️ System Architecture
 
 ```
-Browser (React + AudioWorklet)
-        ↓
-Socket.IO Gateway (Node.js)
-        ↓
-AI Service (FastAPI)
-        ├── Whisper.cpp (Speech-to-Text)
-        └── Intent Classifier (Trained ML Model)
+Frontend (React + AudioWorklet)
+        ↓  (WebSocket)
+Backend (FastAPI)
+        ├── Wake Word Detection
+        ├── VAD + Audio Pipeline
+        ├── Whisper (Speech-to-Text)
+        └── Intent Classifier
 ```
 
 ---
 
-## 🖥️ Tech Stack
+# ⚙️ Requirements
 
-### Frontend
+## System
 
-- React
-- Tailwind CSS
-- Web Audio API + AudioWorklet
-- Socket.IO Client
-
-### Backend
-
-- Node.js (Gateway Server)
-- FastAPI (AI Service)
-- whisper.cpp (local inference)
-- scikit-learn (intent model)
-- joblib (model persistence)
+- Python 3.10+
+- Node.js 18+
+- Modern browser (Chrome recommended)
+- Microphone enabled
 
 ---
 
-## 🚀 How to Run
+# 🚀 Setup Guide
 
-### 1️⃣ Install dependencies
+## 1️⃣ Clone project
 
 ```bash
-# Gateway
-cd gateway
-npm install
+git clone https://github.com/sancy20/ai-voice-assistant
+cd ai-voice-assistant
+```
 
-# AI service
-cd ../ai_service
+---
+
+## 2️⃣ Setup Python environment
+
+```bash
+cd backend
+python -m venv venv
+
+venv\Scripts\activate.ps1
+
 pip install -r requirements.txt
 ```
 
 ---
 
-### 2️⃣ Download Whisper models
+## 3️⃣ Add required models (MANDATORY)
 
-Place Whisper models in the `models/` directory:
+Place Whisper models in:
 
-```
 models/
 ├── ggml-base.en.bin
-└── ggml-tiny.en.bin
-```
+├── ggml-tiny.en.bin
 
 ---
 
-### 3️⃣ Start backend services
+## 4️⃣ Run backend
 
 ```bash
-# AI service
-cd ai_service
-uvicorn app:app --host 0.0.0.0 --port 8000
-
-# Gateway
-cd ../gateway
-node server.js
+cd backend
+python -m uvicorn app.main:app --reload
 ```
+
+Server will run at:
+
+http://127.0.0.1:8000
 
 ---
 
-### 4️⃣ Start frontend
+## 5️⃣ Run frontend
 
 ```bash
 cd frontend
@@ -141,11 +147,9 @@ npm install
 npm run dev
 ```
 
-Open in browser:
+Open:
 
-```
 http://localhost:5173
-```
 
 ---
 
@@ -161,6 +165,18 @@ http://localhost:5173
 
 ---
 
+---
+
+# 🔄 System Flow
+
+Wake Mode:
+Sleep → Detect Wake → Arm → Capture → Process → Execute → Sleep
+
+Hold Mode:
+Press → Capture → Process → Execute → Stop
+
+---
+
 ## 📊 AI Training Details
 
 - Dataset: `intent_dataset.csv`
@@ -170,29 +186,5 @@ http://localhost:5173
 - Model trained offline and saved as:
   - `intent_pipeline.joblib`
 - Loaded automatically by the AI service at runtime
-
----
-
-## 🎓 Academic Context
-
-This project is developed for **Semester 1 – AI Project Practicum**.
-
-It demonstrates:
-
-- Training and deployment of an AI model
-- Integration of open-source AI systems
-- A complete working AI application
-- Real-time AI inference in a web environment
-
----
-
-## 🔮 Future Work
-
-- Improve intent classification accuracy
-- Add confidence-based execution
-- Add text-to-speech (TTS)
-- Context-aware conversation
-- Multilingual support
-- Mobile-friendly UI
 
 ---

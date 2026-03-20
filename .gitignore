@@ -1,4 +1,4 @@
-ai_service/__pycache__/
+backend/__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
@@ -49,7 +49,7 @@ build/
 *.pem
 *.key
 *.crt
-"ai_service/venv/" 
+"backend/venv/" 
 models/*.bin
 
 *.joblib
