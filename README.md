@@ -94,7 +94,7 @@ Backend (FastAPI)
 
 ## 🚀 Setup Guide
 
-## 1️⃣ Clone project
+### 1️⃣ Clone project
 
 ```bash
 git clone https://github.com/sancy20/ai-voice-assistant
@@ -103,7 +103,7 @@ cd ai-voice-assistant
 
 ---
 
-## 2️⃣ Setup Python environment
+### 2️⃣ Setup Python environment
 
 ```bash
 cd backend
@@ -116,7 +116,7 @@ pip install -r requirements.txt
 
 ---
 
-## 3️⃣ Add required models (MANDATORY)
+### 3️⃣ Add required models (MANDATORY)
 
 Place Whisper models in:
 ```
@@ -127,7 +127,7 @@ models/
 
 ---
 
-## 4️⃣ Run backend
+### 4️⃣ Run backend
 
 ```bash
 cd backend
@@ -140,7 +140,7 @@ http://127.0.0.1:8000
 
 ---
 
-## 5️⃣ Run frontend
+### 5️⃣ Run frontend
 
 ```bash
 cd frontend
@@ -163,8 +163,6 @@ http://localhost:5173
 - "Search for machine learning"
 - "What time is it?"
 - "Help"
-
----
 
 ---
 
