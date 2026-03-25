@@ -14,10 +14,11 @@ from app.config import (
     WAKE_COMMAND_SILENCE_TIMEOUT_MS,
     PTT_SILENCE_TIMEOUT_MS,
 )
+
+os.makedirs(SESSIONS_DIR, exist_ok=True)
+
 from app.utils.audio_utils import bytes_to_i16, resample_i16_mono, write_wav_i16
-from app.services.asr_service import run_whisper_on_file
 from app.services.intent_service import predict_intent_rule_based, intent_to_widget_tuple
-from app.services.model_service import resolve_model_path
 from app.services.wakeword_service import (
     is_awake,
     set_awake,
@@ -39,6 +40,53 @@ def compute_audio_features(i16):
     peak = int(np.max(np.abs(i16)))
     return rms, peak
 
+def maybe_make_partial(session_id: str, sample_rate: int):
+    if not state.voice_active_flags.get(session_id, False):
+        return None
+    raw = state.utterance_buffers.get(session_id, b"") or b""
+
+    if len(raw) < int(sample_rate * 0.4) * 2:
+        return None
+
+    last_ts = float(state.last_partial_ts.get(session_id, 0.0) or 0.0)
+    if now_ts() - last_ts < 0.5:
+        return None
+
+    i16 = bytes_to_i16(raw)
+    i16 = resample_i16_mono(i16, sample_rate, TARGET_SR)
+
+    wav_path = os.path.join(SESSIONS_DIR, f"partial_{session_id}_{uuid.uuid4().hex}.wav")
+    write_wav_i16(wav_path, i16, TARGET_SR)
+    asr = state.asr_service
+
+    try:
+        result = asr.transcribe_file(
+            wav_path,
+            beam_size=1,
+            vad_filter=True,
+        )
+        text = (result.get("text") or "").strip()
+    finally:
+        try:
+            os.remove(wav_path)
+        except OSError:
+            pass
+
+    if not text:
+        return None
+
+    prev_text = state.last_partial_text.get(session_id, "")
+    if text == prev_text:
+        state.last_partial_ts[session_id] = now_ts()
+        return None
+
+    state.last_partial_ts[session_id] = now_ts()
+    state.last_partial_text[session_id] = text
+
+    return {
+        "type": "partial",
+        "text": text,
+    }
 
 def finalize_utterance(session_id, sample_rate, model_key):
     raw = state.utterance_buffers.get(session_id, b"")
@@ -56,15 +104,24 @@ def finalize_utterance(session_id, sample_rate, model_key):
     state.voice_active_flags[session_id] = False
     state.silence_ms_accum[session_id] = 0.0
 
-    model_path = resolve_model_path(model_key)
-    transcript = run_whisper_on_file(wav_path, model_path)
+    state.last_partial_ts[session_id] = 0.0
+    state.last_partial_text[session_id] = ""
+
+    asr = state.asr_service
+
+    result = asr.transcribe_file(
+        wav_path,
+        beam_size=3,
+        vad_filter=True,
+    )
+
+    transcript = result.get("text", "").strip()
 
     if not transcript:
         return {"type": "no_speech"}
 
     pred = predict_intent_rule_based(transcript)
     widget = intent_to_widget_tuple(pred)
-
     return {
         "type": "final",
         "transcript": transcript,
@@ -79,6 +136,8 @@ def flush_session(session_id: str, sample_rate: int, model_key: str = None):
     state.preroll_buffers[session_id] = b""
     state.command_armed_until_ts[session_id] = 0.0
     state.command_capture_started[session_id] = False
+    state.last_partial_ts[session_id] = 0.0
+    state.last_partial_text[session_id] = ""
     return result
 
 def process_audio_chunk(
@@ -94,10 +153,10 @@ def process_audio_chunk(
 
     rms, peak = compute_audio_features(i16)
 
-    VOICE_ON_RMS = 0.0060
-    VOICE_OFF_RMS = 0.0038
-    VOICE_PEAK_ON = 650
-    VOICE_PEAK_OFF = 320
+    VOICE_ON_RMS = 0.0080
+    VOICE_OFF_RMS = 0.0048
+    VOICE_PEAK_ON = 900
+    VOICE_PEAK_OFF = 450
     SILENCE_TIMEOUT_MS = (
         WAKE_COMMAND_SILENCE_TIMEOUT_MS if wake_mode else PTT_SILENCE_TIMEOUT_MS
     )
@@ -112,7 +171,6 @@ def process_audio_chunk(
 
     chunk_ms = (len(raw_bytes) / 2 / max(1, sample_rate)) * 1000.0
 
-    # preroll buffer
     pr_max_bytes = int(sample_rate * (PREROLL_MS / 1000.0)) * 2
     pr = state.preroll_buffers.get(session_id, b"")
     pr = (pr + raw_bytes)[-pr_max_bytes:]
@@ -122,7 +180,6 @@ def process_audio_chunk(
         state.awake_until_ts[session_id] = 0.0
         state.rolling_buffers[session_id] = b""
 
-    # wake-word stage
     if wake_mode and not is_awake(session_id):
         ww_max_bytes = int(sample_rate * WAKE_DURATION_SEC) * 2
         ww_rb = state.rolling_buffers.get(session_id, b"")
@@ -141,11 +198,9 @@ def process_audio_chunk(
                         set_awake(session_id, WAKE_AWAKE_WINDOW_SEC)
                         set_cooldown(session_id, WAKE_COOLDOWN_SEC)
 
-                        # Enter armed state: wait a short moment before accepting command speech
                         state.command_armed_until_ts[session_id] = now_ts() + WAKE_ARM_DELAY_SEC
                         state.command_capture_started[session_id] = False
 
-                        # Clear stale buffers so previous/wake audio does not leak into command
                         state.utterance_buffers[session_id] = b""
                         state.silence_ms_accum[session_id] = 0.0
                         state.voice_active_flags[session_id] = False
@@ -176,12 +231,10 @@ def process_audio_chunk(
                 "peak": peak,
             }
         
-    # Wake mode armed state: wait briefly after wake, then wait for fresh speech
     if wake_mode and is_awake(session_id):
         armed_until = float(state.command_armed_until_ts.get(session_id, 0.0) or 0.0)
         capture_started = bool(state.command_capture_started.get(session_id, False))
 
-        # During arm delay, ignore audio and do not capture yet
         if now_ts() < armed_until:
             return {
                 "type": "armed_after_wake",
@@ -197,19 +250,13 @@ def process_audio_chunk(
     else:
         is_voice = (rms >= VOICE_ON_RMS) or (peak >= VOICE_PEAK_ON)
 
-    # print(
-    # f"[VAD] session={session_id} awake={is_awake(session_id)} "
-    # f"rms={rms:.6f} peak={peak} is_voice={is_voice} "
-    # f"sil_ms={state.silence_ms_accum.get(session_id, 0.0):.1f}"
-    # )
-
     if is_voice:
         state.voice_active_flags[session_id] = True
         state.silence_ms_accum[session_id] = 0.0
 
         if wake_mode and is_awake(session_id):
             if not state.command_capture_started.get(session_id, False):
-                strong_voice = (rms >= 0.010) or (peak >= 900)
+                strong_voice = (rms >= 0.012) or (peak >= 1200)
 
                 if not strong_voice:
                     return {
@@ -229,6 +276,13 @@ def process_audio_chunk(
             else:
                 state.utterance_buffers[session_id] += raw_bytes
 
+        partial = maybe_make_partial(session_id, sample_rate)
+        if partial:
+            partial["awake"] = is_awake(session_id) if wake_mode else None
+            partial["rms"] = rms
+            partial["peak"] = peak
+            return partial
+
         return {
             "type": "listening",
             "awake": is_awake(session_id) if wake_mode else None,
@@ -238,8 +292,6 @@ def process_audio_chunk(
 
     if state.voice_active_flags.get(session_id, False):
         state.silence_ms_accum[session_id] += chunk_ms
-
-        # print(f"[SILENCE] session={session_id} sil_ms={state.silence_ms_accum[session_id]:.1f}")
 
         if state.silence_ms_accum[session_id] >= SILENCE_TIMEOUT_MS:
             result = finalize_utterance(session_id, sample_rate, model_key)

@@ -14,7 +14,23 @@ wake_cooldown_until_ts = {}
 wake_voice_seen = {}
 command_armed_until_ts = {}
 command_capture_started = {}
+last_partial_ts = {}
+last_partial_text = {}
 
+from app.services.asr_faster_whisper import FasterWhisperASR
+from app.config import (
+    ASR_MODEL_SIZE,
+    ASR_DEVICE,
+    ASR_COMPUTE_TYPE,
+    ASR_LANGUAGE,
+)
+
+asr_service = FasterWhisperASR(
+    model_size=ASR_MODEL_SIZE,
+    device=ASR_DEVICE,
+    compute_type=ASR_COMPUTE_TYPE,
+    language=ASR_LANGUAGE,
+)
 
 def now_ts() -> float:
     return time.time()

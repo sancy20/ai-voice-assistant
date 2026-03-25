@@ -12,7 +12,7 @@ async def audio_ws(websocket: WebSocket):
 
     session_id = "default"
     sample_rate = 16000
-    model_key = "base.en"
+    model_key = "base"
     wake_mode = "wake"
 
     try:

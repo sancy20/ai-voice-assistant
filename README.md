@@ -3,17 +3,17 @@
 A **real-time, local AI voice assistant** that listens from the browser, detects a wake word, converts speech to text, predicts intent using a trained ML model, and executes actions directly in the browser.
 
 > **Pipeline:**  
-> **Audio → Wake Word → Speech-to-Text → Intent Model → Browser Action**
+> **🎤 Audio → 🔊 Wake Word → 🧠 VAD → 🗣️ Speech-to-Text → 🤖 Intent Model → 🌐 Browser Actions**
 
 ---
 
 ## 📌 Project Objectives
 
-- Build a voice-controlled web assistant using **open-source AI**
-- Train and deploy a **custom intent classification model**
-- Perform **local speech-to-text inference** (no cloud APIs)
-- Execute browser actions based on user voice commands
-- Deliver a complete AI system for **Semester 1 practicum**
+- Web Audio API (frontend)
+- WebSocket streaming (real-time communication)
+- Faster-Whisper (speech recognition)
+- Custom intent classification model
+- Fully local processing (no cloud APIs)
 
 ---
 
@@ -21,7 +21,7 @@ A **real-time, local AI voice assistant** that listens from the browser, detects
 
 - 🎤 Real-time microphone streaming (Web Audio API)
 - 🧠 Wake word detection (local model)
-- 🗣️ Speech-to-text using Whisper (`whisper.cpp`)
+- 🗣️ Speech-to-text using Whisper (`faster-whisper`)
 - 🤖 Custom trained intent classification model
 - 🌐 Browser action execution (search, scroll, open site)
 - ⚡ WebSocket streaming (low latency)
@@ -33,12 +33,9 @@ A **real-time, local AI voice assistant** that listens from the browser, detects
 
 ### 1️⃣ Speech Recognition (Pretrained Model)
 
-- **Model:** Whisper (via `whisper.cpp`)
+- **Model:** Whisper (via `faster-whisper`)
 - **Type:** Open-source pretrained speech-to-text model
-- **Execution:** Local CPU inference
-- **Supported models:** `tiny.en`, `base.en` (dynamic selection)
-
-Whisper converts raw microphone audio into text in real time.
+- **Execution:** Local CPU
 
 ---
 
@@ -71,13 +68,27 @@ This model satisfies the requirement to **train and deploy an AI model**.
 
 ```
 Frontend (React + AudioWorklet)
-        ↓  (WebSocket)
+        ↓  WebSocket (PCM audio)
 Backend (FastAPI)
         ├── Wake Word Detection
         ├── VAD + Audio Pipeline
-        ├── Whisper (Speech-to-Text)
-        └── Intent Classifier
+        ├── Partial Transcription (faster-whisper)
+        ├── Final Transcription
+        ├── Intent Prediction
+        └── Action Response
 ```
+
+---
+
+# 🔄 System Flow
+
+## Wake Mode
+
+Sleep → Wake Word → Armed → Capture → Process → Execute → Sleep
+
+## Hold Mode
+
+Press → Capture → Process → Execute → Stop
 
 ---
 
@@ -116,17 +127,7 @@ pip install -r requirements.txt
 
 ---
 
-## 3️⃣ Add required models (MANDATORY)
-
-Place Whisper models in:
-
-models/
-├── ggml-base.en.bin
-├── ggml-tiny.en.bin
-
----
-
-## 4️⃣ Run backend
+## 3️⃣ Run backend
 
 ```bash
 cd backend
@@ -165,18 +166,6 @@ http://localhost:5173
 
 ---
 
----
-
-# 🔄 System Flow
-
-Wake Mode:
-Sleep → Detect Wake → Arm → Capture → Process → Execute → Sleep
-
-Hold Mode:
-Press → Capture → Process → Execute → Stop
-
----
-
 ## 📊 AI Training Details
 
 - Dataset: `intent_dataset.csv`
@@ -186,5 +175,14 @@ Press → Capture → Process → Execute → Stop
 - Model trained offline and saved as:
   - `intent_pipeline.joblib`
 - Loaded automatically by the AI service at runtime
+
+---
+
+## 📈 Improvements
+
+- faster-whisper replaces whisper.cpp
+- real-time streaming added
+- partial captions added
+- improved noise handling
 
 ---

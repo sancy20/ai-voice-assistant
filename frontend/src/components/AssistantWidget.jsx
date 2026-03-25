@@ -76,11 +76,8 @@ export default function AssistantWidget() {
         : "Wake Word: Sleeping";
 
   const loadModels = async () => {
-    setModels([
-      { key: "base.en", label: "base.en" },
-      { key: "tiny.en", label: "tiny.en" },
-    ]);
-    setSelectedModel((prev) => prev || "base.en");
+    setModels([{ key: "base", label: "base" }]);
+    setSelectedModel("base");
   };
 
   const setStatusSafe = (status) => {
@@ -89,6 +86,12 @@ export default function AssistantWidget() {
 
   const handleBackendResponse = (data) => {
     if (!data || typeof data !== "object") return;
+
+    if (data.type === "partial") {
+      setPartial(data.text || "");
+      setStatusSafe("Listening");
+      return;
+    }
 
     if (data.type === "wake_listening") {
       if (holdForceActiveRef.current) return;
@@ -121,6 +124,11 @@ export default function AssistantWidget() {
 
       awakeUntilRef.current = 0;
       setStatusSafe("Sleeping");
+      return;
+    }
+
+    if (data.type === "partial") {
+      setPartial(data.text || "");
       return;
     }
 
@@ -204,7 +212,7 @@ export default function AssistantWidget() {
           type: "config",
           session_id: sessionIdRef.current,
           sample_rate: audioContextRef.current?.sampleRate || 16000,
-          model_key: selectedModel || "base.en",
+          model_key: selectedModel || "base",
           wake_mode: holdForceActiveRef.current
             ? "ptt"
             : wakeEnabledRef.current
@@ -302,7 +310,6 @@ export default function AssistantWidget() {
   const flushBackend = async () => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
     ws.send(JSON.stringify({ type: "flush" }));
   };
 
@@ -375,7 +382,14 @@ export default function AssistantWidget() {
     if (recordingRef.current) return;
     recordingRef.current = true;
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        noiseSuppression: true,
+        echoCancellation: true,
+        autoGainControl: true,
+        channelCount: 1,
+      },
+    });
     mediaRef.current = stream;
 
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -449,7 +463,7 @@ export default function AssistantWidget() {
         type: "config",
         session_id: sessionIdRef.current,
         sample_rate: audioContextRef.current?.sampleRate || 16000,
-        model_key: selectedModel || "base.en",
+        model_key: selectedModel || "base",
         wake_mode: holdForceActiveRef.current
           ? "ptt"
           : wakeEnabledRef.current
@@ -481,7 +495,7 @@ export default function AssistantWidget() {
           type: "config",
           session_id: sessionIdRef.current,
           sample_rate: audioContextRef.current?.sampleRate || 16000,
-          model_key: selectedModel || "base.en",
+          model_key: selectedModel || "base",
           wake_mode: "wake",
         }),
       );
@@ -530,7 +544,7 @@ export default function AssistantWidget() {
         type: "config",
         session_id: sessionIdRef.current,
         sample_rate: audioContextRef.current?.sampleRate || 16000,
-        model_key: selectedModel || "base.en",
+        model_key: selectedModel || "base",
         wake_mode: holdForceActiveRef.current
           ? "ptt"
           : wakeEnabledRef.current
@@ -554,7 +568,7 @@ export default function AssistantWidget() {
         type: "config",
         session_id: sessionIdRef.current,
         sample_rate: audioContextRef.current?.sampleRate || 16000,
-        model_key: selectedModel || "base.en",
+        model_key: selectedModel || "base",
         wake_mode: "ptt",
       }),
     );
@@ -584,7 +598,7 @@ export default function AssistantWidget() {
             type: "config",
             session_id: sessionIdRef.current,
             sample_rate: audioContextRef.current?.sampleRate || 16000,
-            model_key: selectedModel || "base.en",
+            model_key: selectedModel || "base",
             wake_mode: "wake",
           }),
         );
@@ -721,7 +735,8 @@ export default function AssistantWidget() {
 
                 {!partial && !finalText ? (
                   <div className='rounded-xl bg-white/5 px-3 py-3 text-sm text-white/70 ring-1 ring-white/10'>
-                    Say your wake word, then speak. Or hold the button below.
+                    Say your wake word or hold to speak. Partial captions appear
+                    while listening.
                   </div>
                 ) : null}
               </div>
