@@ -17,7 +17,7 @@ A **real-time, local AI voice assistant** that listens from the browser, detects
 
 ---
 
-# 📌 Key Features
+## 📌 Key Features
 
 - 🎤 Real-time microphone streaming (Web Audio API)
 - 🧠 Wake word detection (local model)
@@ -80,21 +80,21 @@ Backend (FastAPI)
 
 ---
 
-# 🔄 System Flow
+## 🔄 System Flow
 
-## Wake Mode
+### Wake Mode
 
 Sleep → Wake Word → Armed → Capture → Process → Execute → Sleep
 
-## Hold Mode
+### Hold Mode
 
 Press → Capture → Process → Execute → Stop
 
 ---
 
-# ⚙️ Requirements
+## ⚙️ Requirements
 
-## System
+### System
 
 - Python 3.10+
 - Node.js 18+
@@ -103,9 +103,9 @@ Press → Capture → Process → Execute → Stop
 
 ---
 
-# 🚀 Setup Guide
+## 🚀 Setup Guide
 
-## 1️⃣ Clone project
+### 1️⃣ Clone project
 
 ```bash
 git clone https://github.com/sancy20/ai-voice-assistant
@@ -114,7 +114,7 @@ cd ai-voice-assistant
 
 ---
 
-## 2️⃣ Setup Python environment
+### 2️⃣ Setup Python environment
 
 ```bash
 cd backend
@@ -127,7 +127,7 @@ pip install -r requirements.txt
 
 ---
 
-## 3️⃣ Run backend
+### 3️⃣ Run backend
 
 ```bash
 cd backend
@@ -140,7 +140,7 @@ http://127.0.0.1:8000
 
 ---
 
-## 5️⃣ Run frontend
+### 5️⃣ Run frontend
 
 ```bash
 cd frontend
