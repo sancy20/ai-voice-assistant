@@ -1,37 +1,199 @@
-# 🎙️ AI Voice Assistant for Web
+# AI Voice Assistant Web App
 
-A **real-time, local AI voice assistant** that listens from the browser, detects a wake word, converts speech to text, predicts intent using a trained ML model, and executes actions directly in the browser.
-
-> **Pipeline:**  
-> **🎤 Audio → 🔊 Wake Word → 🧠 VAD → 🗣️ Speech-to-Text → 🤖 Intent Model → 🌐 Browser Actions**
+A web-based AI voice assistant built with React, FastAPI, WebSocket audio streaming, speech-to-text, intent routing, wake mode, note mode, search preview, YouTube media control, tasks, alarms, reminders, assistant history, admin analytics logs, and MySQL database storage.
 
 ---
 
-## 📌 Project Objectives
+## Project Overview
 
-- Web Audio API (frontend)
-- WebSocket streaming (real-time communication)
-- Faster-Whisper (speech recognition)
-- Custom intent classification model
-- Fully local processing (no cloud APIs)
+The AI Voice Assistant Web App allows users to control web-based assistant features through voice commands. The system listens to user speech, transcribes audio, detects intent, and performs actions such as:
 
----
+* Searching the web
+* Playing YouTube media
+* Creating tasks
+* Setting alarms
+* Saving reminders
+* Entering note mode
+* Logging assistant activity
 
-# 📌 Key Features
-
-- 🎤 Real-time microphone streaming (Web Audio API)
-- 🧠 Wake word detection (local model)
-- 🗣️ Speech-to-text using Whisper (`faster-whisper`)
-- 🤖 Custom trained intent classification model
-- 🌐 Browser action execution (search, scroll, open site)
-- ⚡ WebSocket streaming (low latency)
-- 🔒 Fully local (no cloud APIs)
+The project also includes an **admin analytics backend** that tracks assistant behavior and performance.
 
 ---
 
-## 🧠 AI Models Used
+## Main Features
 
-### 1️⃣ Speech Recognition (Pretrained Model)
+### Voice Interaction
+
+* Real-time microphone input
+* WebSocket-based audio streaming
+* Push-to-talk mode
+* Wake mode
+* Partial transcript display
+* Final transcript processing
+
+---
+
+### Speech Recognition
+
+* Voice Activity Detection (VAD)
+* Audio chunk streaming
+* Speech-to-text transcription
+* Partial + final transcript
+
+---
+
+### Intent Detection
+
+* Rule-based intent routing
+* Context-aware assistant behavior
+* Unknown intent handling
+* Low-confidence detection
+* Clarification responses
+
+---
+
+## Search Assistant (Siri-style)
+
+* Voice search
+* Top results preview (center UI)
+* Select result by number or voice
+* Next / previous navigation
+* Opens result in **new browser tab**
+
+### Example Commands
+
+```text
+search ai assistant
+open first result
+open second
+next result
+previous result
+```
+
+---
+
+## YouTube Media Assistant
+
+* Search YouTube
+* Mini player inside web app
+* Related videos list (right/below)
+* Voice navigation
+
+### Example Commands
+
+```text
+play youtube lofi music
+play second
+next
+previous
+pause
+resume
+```
+
+---
+
+## Note Mode
+
+* Continuous listening mode
+* Saves full note until stopped
+
+### Commands
+
+```text
+start note mode
+this is my project idea
+save note
+```
+
+---
+
+## Tasks System
+
+* Add tasks
+* Show tasks
+* Delete tasks
+
+### Commands
+
+```text
+add task finish capstone report
+show my tasks
+delete task 1
+```
+
+---
+
+## Alarm System
+
+* Set alarms
+* List alarms
+* Delete alarms
+
+### Commands
+
+```text
+set alarm 6 am
+show alarms
+delete alarm 1
+```
+
+---
+
+## Reminder System
+
+* Smart parsing of time + task
+* Stored in database
+
+### Commands
+
+```text
+remind me to study at 6 pm
+set reminder meeting at 3 pm
+show reminder
+```
+
+---
+
+## Assistant History & Logs
+
+Tracks every assistant action:
+
+* Transcript
+* Intent
+* Confidence
+* Status (success / failed)
+* Action type
+* Timestamp
+
+---
+
+## Admin Analytics Backend
+
+Provides monitoring APIs:
+
+### Metrics:
+
+* Total commands
+* Success rate
+* Failed commands
+* Low-confidence commands
+* Intent statistics
+* Action statistics
+
+---
+
+## Other Features
+
+- Real-time microphone streaming (Web Audio API)
+- Wake word detection (local model)
+- Speech-to-text using Whisper (`faster-whisper`)
+- Custom trained intent classification model
+
+---
+
+## AI Models Used
+
+### Speech Recognition (Pretrained Model)
 
 - **Model:** Whisper (via `faster-whisper`)
 - **Type:** Open-source pretrained speech-to-text model
@@ -39,7 +201,7 @@ A **real-time, local AI voice assistant** that listens from the browser, detects
 
 ---
 
-### 2️⃣ Intent Recognition (Trained Model)
+### Intent Recognition (Trained Model)
 
 - **Type:** Supervised machine learning classifier
 - **Training data:** Custom dataset (`intent_dataset.csv`)
@@ -50,7 +212,7 @@ This model satisfies the requirement to **train and deploy an AI model**.
 
 ---
 
-## 🗂️ Supported Intent Classes
+## Supported Intent Classes
 
 | Intent      | Description                                         |
 | ----------- | --------------------------------------------------- |
@@ -64,35 +226,53 @@ This model satisfies the requirement to **train and deploy an AI model**.
 
 ---
 
-## 🏗️ System Architecture
+## Tech Stack
+
+### Frontend
+
+* React
+* Vite
+* Tailwind CSS
+* WebSocket API
+
+### Backend
+
+* FastAPI
+* Python
+* WebSocket
+* SQLAlchemy
+* PyMySQL
+* faster-whisper (ASR)
+
+### Database
+
+* MySQL
+
+---
+
+## System Architecture
 
 ```
-Frontend (React + AudioWorklet)
-        ↓  WebSocket (PCM audio)
-Backend (FastAPI)
-        ├── Wake Word Detection
-        ├── VAD + Audio Pipeline
-        ├── Partial Transcription (faster-whisper)
-        ├── Final Transcription
-        ├── Intent Prediction
-        └── Action Response
+User Voice → Frontend (Mic Capture) → WebSocket Streaming → FastAPI Backend → Speech-to-Text → Intent Detection → Assistant Action → Frontend UI Update → MySQL Storage
 ```
 
 ---
 
-# 🔄 System Flow
+## System Flow
 
-## Wake Mode
+### Wake Mode
 
+```
 Sleep → Wake Word → Armed → Capture → Process → Execute → Sleep
+```
 
-## Hold Mode
+### Hold Mode
 
+```
 Press → Capture → Process → Execute → Stop
+```
 
 ---
-
-# ⚙️ Requirements
 
 ## System
 
@@ -103,9 +283,9 @@ Press → Capture → Process → Execute → Stop
 
 ---
 
-# 🚀 Setup Guide
+## Setup Guide
 
-## 1️⃣ Clone project
+### Clone project
 
 ```bash
 git clone https://github.com/sancy20/ai-voice-assistant
@@ -114,7 +294,7 @@ cd ai-voice-assistant
 
 ---
 
-## 2️⃣ Setup Python environment
+### Backend Setup
 
 ```bash
 cd backend
@@ -127,20 +307,23 @@ pip install -r requirements.txt
 
 ---
 
-## 3️⃣ Run backend
+### MySQL Setup
 
-```bash
-cd backend
-python -m uvicorn app.main:app --reload
+```sql
+CREATE DATABASE voice_assistant_db;
 ```
-
-Server will run at:
-
-http://127.0.0.1:8000
 
 ---
 
-## 5️⃣ Run frontend
+### Run Backend
+
+```bash
+python -m uvicorn app.main:app --reload
+```
+
+---
+
+### Frontend Setup
 
 ```bash
 cd frontend
@@ -148,13 +331,9 @@ npm install
 npm run dev
 ```
 
-Open:
-
-http://localhost:5173
-
 ---
 
-## 🎤 Example Voice Commands
+## Example Voice Commands
 
 - "Open YouTube"
 - "Open ChatGPT"
@@ -166,7 +345,7 @@ http://localhost:5173
 
 ---
 
-## 📊 AI Training Details
+## AI Training Details
 
 - Dataset: `intent_dataset.csv`
 - Each sample contains:
@@ -175,14 +354,5 @@ http://localhost:5173
 - Model trained offline and saved as:
   - `intent_pipeline.joblib`
 - Loaded automatically by the AI service at runtime
-
----
-
-## 📈 Improvements
-
-- faster-whisper replaces whisper.cpp
-- real-time streaming added
-- partial captions added
-- improved noise handling
 
 ---
