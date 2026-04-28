@@ -1,12 +1,18 @@
-import React from "react";
+import React, { useState } from "react";
 import AssistantWidget from "./components/AssistantWidget";
 import ActionScreen from "./components/ActionScreen";
+import MediaOverlay from "./components/MediaOverlay";
+import CenterSearchResults from "./components/CenterSearchResults";
 
 export default function App() {
+  const [centerPanelActive, setCenterPanelActive] = useState(false);
   return (
     <div className='min-h-screen bg-[rgb(33,33,33)] text-white'>
-      {/* Center Action Screen */}
-      <ActionScreen />
+      {!centerPanelActive && <ActionScreen />}
+
+      <CenterSearchResults setCenterPanelActive={setCenterPanelActive} />
+      <MediaOverlay setCenterPanelActive={setCenterPanelActive} />
+
       <main className='relative mx-auto max-w-5xl px-6 py-10'>
         <header className='space-y-2'>
           <h1 className='text-2xl font-semibold tracking-tight'>

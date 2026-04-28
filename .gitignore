@@ -20,7 +20,8 @@ venv/
 *.pkl
 *.joblib
 *.onnx
-models/
+models/intent_pipeline.joblib
+models/wakeword_model.joblib
 checkpoints/
 
 audio_chunks/

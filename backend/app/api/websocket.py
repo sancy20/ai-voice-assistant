@@ -78,6 +78,22 @@ async def audio_ws(websocket: WebSocket):
                     wake_mode=(wake_mode == "wake"),
                 )
 
+                msg_type = result.get("type")
+
+                if msg_type == "wake_detected":
+                    await websocket.send_json({
+                        "type": "wake",
+                        "awake": True,
+                    })
+                    continue
+
+                if msg_type in ("sleep", "wake_timeout"):
+                    await websocket.send_json({
+                        "type": "sleep",
+                        "awake": False,
+                    })
+                    continue
+
                 await websocket.send_json(result)
                 continue
 

@@ -11,3 +11,11 @@ recordings/
 *.pkl
 
 whisper.cpp/build/
+
+
+data/
+*.json
+
+create_tables.py
+test_db.py
+db_models.py

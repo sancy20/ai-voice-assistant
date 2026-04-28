@@ -1,22 +1,5 @@
 import time
 
-session_text = {}
-last_run_samples = {}
-rolling_buffers = {}
-utterance_buffers = {}
-voice_active_flags = {}
-silence_ms_accum = {}
-preroll_buffers = {}
-session_sample_rate = {}
-wake_started_ts = {}
-awake_until_ts = {}
-wake_cooldown_until_ts = {}
-wake_voice_seen = {}
-command_armed_until_ts = {}
-command_capture_started = {}
-last_partial_ts = {}
-last_partial_text = {}
-
 from app.services.asr_faster_whisper import FasterWhisperASR
 from app.config import (
     ASR_MODEL_SIZE,

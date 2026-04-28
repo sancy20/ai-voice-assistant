@@ -9,4 +9,6 @@ scikit-learn
 librosa
 python-multipart
 websockets
-faster-whisper
+python-dotenv
+sqlalchemy
+pymysql

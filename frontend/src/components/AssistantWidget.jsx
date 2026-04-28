@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Settings as SettingsIcon, Mic, Wifi, WifiOff } from "lucide-react";
-import { emitAction } from "./actionBus";
+import {
+  emitAction,
+  emitMedia,
+  emitMediaControl,
+  emitResults,
+  emitSearchControl,
+} from "./actionBus";
 
 // display durations (ms)
 const SHOW_SPEECH_MS = 12000;
@@ -45,6 +51,18 @@ export default function AssistantWidget() {
   const wakeEnabledRef = useRef(false);
   const [wakeEnabled, setWakeEnabled] = useState(false);
 
+  const [isAwake, setIsAwake] = useState(false);
+
+  const [isNoteMode, setIsNoteMode] = useState(false);
+  const isNoteModeRef = useRef(false);
+
+  const [searchPreview, setSearchPreview] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
+
+  useEffect(() => {
+    isNoteModeRef.current = isNoteMode;
+  }, [isNoteMode]);
+
   const SAFE_OPEN_SITES = useMemo(
     () => ({
       chatgpt: "https://chat.openai.com/",
@@ -56,10 +74,12 @@ export default function AssistantWidget() {
     [],
   );
 
-  const wakeStatus = useMemo(() => {
-    if (connStatus !== "Connected") return "Disconnected";
-    return Date.now() < awakeUntilRef.current ? "Awake" : "Sleeping";
-  }, [connStatus, assistantStatus, partial, finalText]);
+  const wakeStatus =
+    connStatus !== "Connected"
+      ? "Disconnected"
+      : isAwake
+        ? "Awake"
+        : "Sleeping";
 
   const wakeStatusPill =
     wakeStatus === "Disconnected"
@@ -84,32 +104,51 @@ export default function AssistantWidget() {
     setAssistantStatus((prev) => (prev === status ? prev : status));
   };
 
+  const openMediaWorkspace = (payload) => {
+    if (!payload?.results?.length) return;
+
+    emitMedia({
+      provider: payload.provider || "youtube",
+      query: payload.query || "",
+      results: payload.results,
+      selectedIndex: 0,
+    });
+  };
+
   const handleBackendResponse = (data) => {
     if (!data || typeof data !== "object") return;
 
     if (data.type === "partial") {
-      setPartial(data.text || "");
-      setStatusSafe("Listening");
+      const allowPartial =
+        holdForceActiveRef.current ||
+        wakeEnabledRef.current ||
+        isNoteModeRef.current;
+
+      if (allowPartial) {
+        setPartial(data.text || "");
+        setStatusSafe("Listening");
+      } else {
+        setPartial("");
+      }
       return;
     }
 
-    if (data.type === "wake_listening") {
-      if (holdForceActiveRef.current) return;
-      return;
-    }
-
-    if (data.type === "wake_detected") {
+    if (data.type === "wake") {
       awakeUntilRef.current = Date.now() + 9000;
+      setIsAwake(true);
       setStatusSafe("Listening");
       return;
     }
 
-    if (data.type === "listening") {
-      setStatusSafe("Listening");
+    if (data.type === "sleep") {
+      awakeUntilRef.current = 0;
+      setIsAwake(false);
+      setStatusSafe("Sleeping");
       return;
     }
 
-    if (data.type === "armed_after_wake") {
+    if (data.type === "listening" || data.type === "armed_after_wake") {
+      if (assistantStatus === "Processing") return;
       setStatusSafe("Listening");
       return;
     }
@@ -118,84 +157,156 @@ export default function AssistantWidget() {
       return;
     }
 
+    if (data.type === "assistant_response") {
+      const text = data.transcript || "";
+      const message = data.message || "";
+      const action = data.action || {};
+      const kind = action.kind;
+      const actionData = action.data || {};
+
+      setFinalText(text || message);
+      setPartial("");
+      setStatusSafe("Processing");
+      awakeUntilRef.current = 0;
+      setIsAwake(false);
+
+      if (message) {
+        emitAction({ text: message, kind: "say", durationMs: SHOW_SPEECH_MS });
+      }
+
+      if (kind === "search_preview") {
+        setSearchPreview(null);
+        setMediaPreview(null);
+
+        emitResults({
+          kind: "search_results",
+          title: "Search Results",
+          subtitle: actionData?.query
+            ? `Top results for "${actionData.query}"`
+            : "Top search results",
+          items: actionData?.results || [],
+        });
+      } else if (kind === "media_search") {
+        setMediaPreview(null);
+        setSearchPreview(null);
+
+        openMediaWorkspace(actionData);
+
+        emitAction({
+          text: message || "Opening media results",
+          kind: "say",
+          durationMs: 6000,
+        });
+      } else if (kind === "media_pause") {
+        emitMediaControl({ type: "pause" });
+        emitAction({ text: "Media paused", kind: "say", durationMs: 2500 });
+      } else if (kind === "media_resume") {
+        emitMediaControl({ type: "resume" });
+        emitAction({ text: "Media resumed", kind: "say", durationMs: 2500 });
+      } else if (kind === "media_next") {
+        emitMediaControl({ type: "next" });
+        emitAction({
+          text: "Playing next result",
+          kind: "say",
+          durationMs: 2500,
+        });
+      } else if (kind === "media_prev") {
+        emitMediaControl({ type: "prev" });
+        emitAction({
+          text: "Playing previous result",
+          kind: "say",
+          durationMs: 2500,
+        });
+      } else if (kind === "media_select") {
+        emitMediaControl({ type: "select", index: actionData.index || 1 });
+        emitAction({
+          text: `Playing result number ${actionData.index || 1}`,
+          kind: "say",
+          durationMs: 2500,
+        });
+      } else if (kind === "search_open_result") {
+        emitSearchControl({ type: "open", index: actionData.index || 1 });
+        emitAction({
+          text: `Opening result number ${actionData.index || 1}`,
+          kind: "say",
+          durationMs: 2500,
+        });
+      } else if (kind === "search_next") {
+        emitSearchControl({ type: "next" });
+        emitAction({
+          text: "Moving to next result",
+          kind: "say",
+          durationMs: 2500,
+        });
+      } else if (kind === "search_prev") {
+        emitSearchControl({ type: "prev" });
+        emitAction({
+          text: "Moving to previous result",
+          kind: "say",
+          durationMs: 2500,
+        });
+      } else if (kind === "open") {
+        setTimeout(() => executeIntent(["open", actionData.target || ""]), 650);
+      } else if (kind === "scroll") {
+        setTimeout(
+          () => executeIntent(["scroll", actionData.direction || "down"]),
+          650,
+        );
+      } else if (kind === "navigate") {
+        setTimeout(
+          () => executeIntent(["navigate", actionData.direction || "back"]),
+          650,
+        );
+      } else if (kind === "show_time") {
+        setTimeout(() => executeIntent(["time", actionData.time || ""]), 650);
+      }
+
+      setTimeout(() => {
+        if (!holdForceActiveRef.current && !isNoteModeRef.current) {
+          setPartial("");
+          setStatusSafe("Sleeping");
+        }
+      }, 1200);
+
+      return;
+    }
+
+    if (data.type === "assistant_clarification") {
+      setFinalText(data.transcript || "");
+      setPartial("");
+      setStatusSafe("Processing");
+      awakeUntilRef.current = 0;
+      setIsAwake(false);
+      setSearchPreview(null);
+      setMediaPreview(null);
+
+      if (data.message) {
+        emitAction({
+          text: data.message,
+          kind: "say",
+          durationMs: SHOW_SPEECH_MS,
+        });
+      }
+
+      setTimeout(() => {
+        if (!holdForceActiveRef.current && !isNoteModeRef.current) {
+          setPartial("");
+          setStatusSafe("Sleeping");
+        }
+      }, 1200);
+
+      return;
+    }
+
     if (data.type === "no_speech" || data.type === "empty") {
       if (holdForceActiveRef.current) return;
-      if (Date.now() < awakeUntilRef.current) return;
-
       awakeUntilRef.current = 0;
+      setIsAwake(false);
       setStatusSafe("Sleeping");
       return;
     }
 
-    if (data.type === "partial") {
-      setPartial(data.text || "");
-      return;
-    }
-
-    if (data.type === "final") {
-      const text = data.transcript || "";
-      const widget = data.widget;
-
-      setFinalText(text);
-      setPartial("");
-      setStatusSafe("Processing");
-
-      if (text) {
-        emitAction({ text, kind: "say", durationMs: SHOW_SPEECH_MS });
-      }
-
-      if (Array.isArray(widget) && widget.length) {
-        const [type, value] = widget;
-
-        if (type === "scroll") {
-          emitAction({
-            text: value === "up" ? "Scroll up" : "Scroll down",
-            kind: value === "up" ? "scroll_up" : "scroll_down",
-            durationMs: SHOW_SCROLL_MS,
-          });
-        } else if (type === "navigate") {
-          emitAction({
-            text:
-              value === "home"
-                ? "Go home"
-                : value === "back"
-                  ? "Go back"
-                  : `Navigate: ${value || ""}`,
-            kind: "action",
-            durationMs: SHOW_ACTION_MS,
-          });
-        } else if (type === "open") {
-          emitAction({
-            text: `Open: ${value || ""}`.trim(),
-            kind: "action",
-            durationMs: SHOW_ACTION_MS,
-          });
-        } else if (type === "search") {
-          emitAction({
-            text: `Search: ${value || ""}`.trim(),
-            kind: "search",
-            durationMs: SHOW_ACTION_MS,
-          });
-        } else if (type === "time") {
-          emitAction({
-            text: value ? `Time: ${value}` : "Time",
-            kind: "action",
-            durationMs: SHOW_ACTION_MS,
-          });
-        }
-
-        setTimeout(() => executeIntent(widget), 650);
-      }
-
-      setTimeout(() => {
-        if (!holdForceActiveRef.current) {
-          awakeUntilRef.current = 0;
-          setStatusSafe("Sleeping");
-        }
-      }, 900);
-
-      return;
-    }
+    console.log("Unhandled WS type:", data.type, data);
   };
 
   const connectWebSocket = () => {
@@ -225,10 +336,44 @@ export default function AssistantWidget() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        handleBackendResponse(
-          data,
-          holdForceActiveRef.current ? "ptt" : "wake",
-        );
+        console.log("WS MESSAGE:", data);
+
+        if (data.type === "note_mode_started") {
+          isNoteModeRef.current = true;
+          setIsNoteMode(true);
+          setFinalText(
+            data.message || "Note mode is now on. I am listening continuously.",
+          );
+          setPartial("");
+          setStatusSafe("Listening");
+          ensureMicStarted();
+          recordingRef.current = true;
+          return;
+        }
+
+        if (data.type === "note_mode_update") {
+          setIsNoteMode(true);
+          setFinalText(data.text || "");
+          setPartial("(listening...)");
+          setStatusSafe("Listening");
+          return;
+        }
+
+        if (data.type === "note_mode_stopped") {
+          isNoteModeRef.current = false;
+          setIsNoteMode(false);
+          setFinalText(data.note_text || "");
+          setPartial("");
+          setStatusSafe("Sleeping");
+          setIsAwake(false);
+          awakeUntilRef.current = 0;
+
+          if (!wakeEnabledRef.current && !holdForceActiveRef.current) {
+            stopAudioPipeline();
+          }
+          return;
+        }
+        handleBackendResponse(data);
       } catch (err) {
         console.error("ws message parse error", err);
       }
@@ -356,7 +501,10 @@ export default function AssistantWidget() {
   const clearUI = () => {
     setPartial("");
     setFinalText("");
+    setSearchPreview(null);
+    setMediaPreview(null);
     emitAction({ text: "Cleared", kind: "ptt", durationMs: 1800 });
+    emitResults(null);
   };
 
   // audio level loop
@@ -440,7 +588,9 @@ export default function AssistantWidget() {
           const toSend = pendingBytesRef.current;
           pendingBytesRef.current = null;
           const shouldSend =
-            holdForceActiveRef.current || wakeEnabledRef.current;
+            holdForceActiveRef.current ||
+            wakeEnabledRef.current ||
+            isNoteModeRef.current;
 
           if (toSend?.byteLength && shouldSend) {
             sendChunkToBackend(toSend);
@@ -603,7 +753,11 @@ export default function AssistantWidget() {
           }),
         );
       } else {
-        await stopAudioPipeline();
+        setTimeout(async () => {
+          if (!wakeEnabledRef.current && !isNoteModeRef.current) {
+            await stopAudioPipeline();
+          }
+        }, 800);
       }
     }
   };
@@ -634,7 +788,7 @@ export default function AssistantWidget() {
       ) : null}
 
       {isOpen ? (
-        <div className='relative w-[420px] overflow-hidden rounded-3xl border border-white/10 bg-black/90 text-white shadow-2xl backdrop-blur'>
+        <div className='relative w-105 overflow-hidden rounded-3xl border border-white/10 bg-black/90 text-white shadow-2xl backdrop-blur'>
           <div className='flex items-center justify-between px-5 py-4'>
             <div className='flex items-center gap-3'>
               <div className='grid h-10 w-10 place-items-center rounded-2xl bg-white/5 ring-1 ring-white/10'>
@@ -716,7 +870,7 @@ export default function AssistantWidget() {
                 </div>
               </div>
 
-              <div className='mt-3 min-h-[92px] space-y-2'>
+              <div className='mt-3 min-h-23 space-y-2'>
                 {partial ? (
                   <div className='rounded-xl bg-white/5 px-3 py-2 text-sm text-white ring-1 ring-white/10'>
                     <span className='mr-2 text-xs text-white/60'>
@@ -739,10 +893,18 @@ export default function AssistantWidget() {
                     while listening.
                   </div>
                 ) : null}
+
+                {mediaPreview?.results?.length ? (
+                  <div className='pt-3'>
+                    <div className='rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/70'>
+                      Found {mediaPreview.results.length} media results for “
+                      {mediaPreview.query}”.
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
-
           <div className='px-5 pb-5'>
             <button
               onClick={wakeEnabled ? disableWakeMode : enableWakeMode}
