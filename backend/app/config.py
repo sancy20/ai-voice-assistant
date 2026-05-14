@@ -8,11 +8,11 @@ SESSIONS_DIR = os.path.join(BASE_DIR, "sessions")
 MODELS_DIR = os.path.join(ROOT_DIR, "models")
 APP_MODELS_DIR = os.path.join(APP_DIR, "models")
 
-ASR_BACKEND = "faster_whisper"
-ASR_MODEL_SIZE = "base"
-ASR_DEVICE = "cpu"
-ASR_COMPUTE_TYPE = "int8"
-ASR_LANGUAGE = "en"
+ASR_BACKEND = os.getenv("ASR_BACKEND", "faster_whisper")
+ASR_MODEL_SIZE = os.getenv("ASR_MODEL_SIZE", "small.en")
+ASR_DEVICE = os.getenv("ASR_DEVICE", "cpu")
+ASR_COMPUTE_TYPE = os.getenv("ASR_COMPUTE_TYPE", "int8")
+ASR_LANGUAGE = os.getenv("ASR_LANGUAGE", "en")
 
 TARGET_SR = int(os.getenv("TARGET_SR", "16000"))
 

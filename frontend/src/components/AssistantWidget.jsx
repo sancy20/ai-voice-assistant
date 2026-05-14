@@ -13,6 +13,8 @@ const SHOW_SPEECH_MS = 12000;
 const SHOW_ACTION_MS = 10000; // action label / result
 const SHOW_SCROLL_MS = 10000;
 
+const WS_URL = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000/ws/audio";
+
 export default function AssistantWidget() {
   const sessionIdRef = useRef(crypto?.randomUUID?.() || `sess_${Date.now()}`);
 
@@ -312,7 +314,7 @@ export default function AssistantWidget() {
   const connectWebSocket = () => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
 
-    const ws = new WebSocket("ws://127.0.0.1:8000/ws/audio");
+    const ws = new WebSocket(WS_URL);
     ws.binaryType = "arraybuffer";
 
     ws.onopen = () => {

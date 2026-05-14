@@ -15,6 +15,13 @@ from app.services.model_service import WAKE_MODEL
 
 router = APIRouter()
 
+@router.get("/health")
+async def health_check():
+    return {
+        "ok": True,
+        "service": "ai-voice-assistant-backend",
+        "asr_backend": "faster_whisper"
+    }
 
 @router.get("/wake/info")
 async def wake_info():
