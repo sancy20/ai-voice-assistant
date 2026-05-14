@@ -11,8 +11,8 @@ class FasterWhisperASR:
     def __init__(
         self,
         model_size: str = "base",
-        device: str = "cpu",
-        compute_type: str = "int8",
+        device: str = "cuda",
+        compute_type: str = "float16",
         language: Optional[str] = "en",
     ) -> None:
         self.model_size = model_size

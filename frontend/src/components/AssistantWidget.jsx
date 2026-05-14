@@ -8,9 +8,8 @@ import {
   emitSearchControl,
 } from "./actionBus";
 
-// display durations (ms)
 const SHOW_SPEECH_MS = 12000;
-const SHOW_ACTION_MS = 10000; // action label / result
+const SHOW_ACTION_MS = 10000; 
 const SHOW_SCROLL_MS = 10000;
 
 export default function AssistantWidget() {

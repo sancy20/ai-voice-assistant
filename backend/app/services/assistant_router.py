@@ -94,6 +94,10 @@ def detect_builtin_command_intent(text: str):
 
     if text.startswith("open "):
         target = text.replace("open ", "", 1).strip()
+        base = re.sub(r"\.(com|tv|org|net|io)$", "", target).strip()
+        # Video sites → open in MediaOverlay
+        if base in ("youtube", "twitch", "vimeo"):
+            return "media_search", 0.95, {"provider": "youtube", "query": f"{base} trending"}
         if target:
             return "open", 0.95, {"site": target}
 
@@ -301,6 +305,12 @@ def detect_media_intent(text: str):
     if text.startswith("play ") and "youtube" in text:
         query = text.replace("play", "", 1).replace("youtube", "", 1).strip()
         if query:
+            return "media_search", {"provider": "youtube", "query": query}
+
+    # Generic "play X" → YouTube search (catches "play lofi", "play jazz", etc.)
+    if text.startswith("play "):
+        query = text.replace("play ", "", 1).strip()
+        if query and len(query) > 1:
             return "media_search", {"provider": "youtube", "query": query}
 
     if "pause media" in text or text == "pause":
