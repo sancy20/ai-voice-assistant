@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "PowerShell(Start-Sleep -Seconds 3; try { $r = Invoke-WebRequest -Uri \"http://127.0.0.1:8000/api/subscription/plans\" -UseBasicParsing -TimeoutSec 5; Write-Host \"Plans endpoint OK:\"; $r.Content } catch { Write-Host \"Not reachable yet: $_\" })",
-      "PowerShell(cd d:\\\\PP\\\\ai-voice-assistant\\\\frontend; $proc = Start-Process -FilePath \"npm\" -ArgumentList \"run dev\" -PassThru -WindowStyle Normal; Start-Sleep -Seconds 8; Write-Host \"Frontend started \\(PID $\\($proc.Id\\)\\)\")",
-      "PowerShell(Start-Sleep -Seconds 3; try { $r = Invoke-WebRequest -Uri \"http://localhost:5174\" -UseBasicParsing -TimeoutSec 5; Write-Host \"OK: HTTP $\\($r.StatusCode\\)\" } catch { try { $r = Invoke-WebRequest -Uri \"http://localhost:5173\" -UseBasicParsing -TimeoutSec 5; Write-Host \"OK on 5173: HTTP $\\($r.StatusCode\\)\" } catch { Write-Host \"Not yet: $_\" } })"
-    ]
-  }
-}
