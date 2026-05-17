@@ -60,13 +60,15 @@ function NavItem({ to, icon: Icon, label, collapsed, onClick }) {
             style={{ color: isActive ? "var(--accent-fg)" : "var(--fg-3)" }} />
           <AnimatePresence>
             {!collapsed && (
-              <motion.span
-                initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: "auto" }}
-                exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.15 }}
-                className="relative overflow-hidden whitespace-nowrap"
-                style={{ color: isActive ? "var(--fg)" : "var(--fg-3)", fontWeight: isActive ? 500 : 400 }}>
+              <span
+                className="relative whitespace-nowrap"
+                style={{
+                  color: isActive ? "var(--fg)" : "var(--fg-3)",
+                  fontWeight: isActive ? 500 : 400,
+                }}
+              >
                 {label}
-              </motion.span>
+              </span>
             )}
           </AnimatePresence>
         </>
@@ -112,18 +114,19 @@ export default function Layout({ children }) {
           </div>
           <AnimatePresence>
             {!collapsed && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
                 <span className="text-sm font-bold tracking-tight whitespace-nowrap" style={{ color: "var(--fg)" }}>
                   VoiceAI
                 </span>
-                <span className="h-1.5 w-1.5 rounded-full shrink-0"
+                <span
+                  className="h-1.5 w-1.5 rounded-full shrink-0"
                   title={connStatus}
                   style={{
                     background: isConnected ? "var(--green)" : isReconnecting ? "#fbbf24" : "var(--rose)",
                     animation: isConnected ? "pulse-dot 2.4s ease-in-out infinite" : isReconnecting ? "pulse-dot 0.9s ease-in-out infinite" : "none",
-                  }} />
-              </motion.div>
+                  }}
+                />
+              </div>
             )}
           </AnimatePresence>
         </div>
@@ -168,10 +171,9 @@ export default function Layout({ children }) {
               : <Moon className="h-4 w-4 shrink-0 text-indigo-400" />}
             <AnimatePresence>
               {!collapsed && (
-                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="text-sm whitespace-nowrap overflow-hidden">
+                <span className="text-sm whitespace-nowrap overflow-hidden">
                   {theme === "dark" ? "Light mode" : "Dark mode"}
-                </motion.span>
+                </span>
               )}
             </AnimatePresence>
           </button>
@@ -182,10 +184,9 @@ export default function Layout({ children }) {
             <LogOut className="h-4 w-4 shrink-0 group-hover:text-[var(--rose)] transition-colors" />
             <AnimatePresence>
               {!collapsed && (
-                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="text-sm whitespace-nowrap overflow-hidden group-hover:text-[var(--rose)] transition-colors">
+                <span className="text-sm whitespace-nowrap overflow-hidden group-hover:text-[var(--rose)] transition-colors">
                   Sign out
-                </motion.span>
+                </span>
               )}
             </AnimatePresence>
           </button>
@@ -198,10 +199,9 @@ export default function Layout({ children }) {
             </motion.div>
             <AnimatePresence>
               {!collapsed && (
-                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="text-sm whitespace-nowrap overflow-hidden">
+                <span className="text-sm whitespace-nowrap overflow-hidden">
                   Collapse
-                </motion.span>
+                </span>
               )}
             </AnimatePresence>
           </button>
@@ -309,14 +309,14 @@ export default function Layout({ children }) {
           </>
         )}
       </AnimatePresence>
-      <main className="flex-1 min-w-0 overflow-y-auto pt-[var(--topbar-h)] pb-[var(--bottomnav-h)] lg:pt-0 lg:pb-0 relative">
+      <main className={`flex-1 min-w-0 pt-[var(--topbar-h)] pb-[var(--bottomnav-h)] lg:pt-0 lg:pb-0 relative ${ location.pathname === "/assistant" ? "overflow-hidden" : "overflow-y-auto" }`} >
         <AnimatePresence mode="wait">
           <motion.div key={location.pathname}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="min-h-full">
+            className="h-full">
             {children}
           </motion.div>
         </AnimatePresence>

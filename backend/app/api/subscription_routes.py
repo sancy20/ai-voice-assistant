@@ -40,7 +40,7 @@ def upgrade_plan(
         raise HTTPException(status_code=400, detail="Invalid plan")
 
     old_plan = user.plan or "free"
-    user.plan = payload.plan
+    user.credits = PLAN_TOKENS[payload.plan]
 
     # Grant token difference when upgrading
     new_tokens = PLAN_TOKENS[payload.plan]

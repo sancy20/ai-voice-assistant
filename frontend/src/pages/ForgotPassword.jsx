@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Mail, Send, Copy, Check } from "lucide-react";
-
-const API = "http://127.0.0.1:8000";
+import { API_URL } from "../config/api";
 
 const MIC_SVG = (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -24,7 +23,7 @@ export default function ForgotPassword() {
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API}/api/auth/forgot-password`, {
+      const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -55,7 +54,7 @@ export default function ForgotPassword() {
         {/* Logo */}
         <div className="flex items-center gap-2 mb-8">
           <div className="h-6 w-6 rounded-md grid place-items-center shrink-0"
-            style={{ background: "var(--accent)" }}>
+            style={{ background: "var(--accent)", marginBottom: "10px"}}>
             {MIC_SVG}
           </div>
           <span className="text-sm font-semibold">VoiceAI</span>
@@ -65,7 +64,7 @@ export default function ForgotPassword() {
           style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}>
 
           <h1 className="text-lg font-bold mb-1" style={{ color: "var(--fg)" }}>Reset password</h1>
-          <p className="text-sm mb-6" style={{ color: "var(--fg-3)" }}>
+          <p className="text-sm mb-6" style={{ color: "var(--fg-3)", marginBottom: "24px" }}>
             Enter your email and we'll generate a reset link.
           </p>
 
@@ -96,7 +95,7 @@ export default function ForgotPassword() {
 
               <button type="submit" disabled={loading}
                 className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
-                style={{ background: "var(--accent)" }}>
+                style={{ background: "var(--accent)", marginTop: "25px"}}>
                 <Send className="h-3.5 w-3.5" />
                 {loading ? "Sending…" : "Send reset link"}
               </button>
@@ -135,7 +134,7 @@ export default function ForgotPassword() {
 
         <Link to="/login"
           className="mt-5 flex items-center gap-1.5 text-xs transition-colors"
-          style={{ color: "var(--fg-4)" }}>
+          style={{ color: "var(--fg-4)", marginTop: "10px"}}>
           <ArrowLeft className="h-3.5 w-3.5" /> Back to sign in
         </Link>
       </motion.div>

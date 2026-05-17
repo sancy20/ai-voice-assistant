@@ -148,6 +148,7 @@ export default function Assistant() {
   const {
     connStatus, status, isHolding, wakeEnabled,
     partial, conversation, audioLevel,
+    noteModeActive, liveNoteText,
     onHoldStart, onHoldEnd, onWakeToggle, clearConversation, sendText,
   } = useAssistant();
 
@@ -218,7 +219,7 @@ export default function Assistant() {
   const statusColor  = { idle: "var(--fg-4)", listening: "#a78bfa", processing: "#f59e0b", awake: "#10b981" }[status] ?? "var(--fg-4)";
 
   return (
-    <div className="flex flex-col h-full min-h-0" style={{ background: "var(--bg)" }}>
+    <div className="flex flex-col h-full min-h-0 overflow-hidden" style={{ background: "var(--bg)", }} >
       <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-3 border-b"
         style={{ borderColor: "var(--border-s)", background: "var(--bg)" }}>
         <div className="flex items-center gap-3">
@@ -252,24 +253,24 @@ export default function Assistant() {
             { icon: Trash2,                         active: false,      onClick: () => { clearConversation(); window.speechSynthesis.cancel(); },            title: "Clear chat", disabled: !conversation.length },
           ].map(({ icon: Icon, active, onClick, title, disabled }) => (
             <button key={title} onClick={onClick} disabled={disabled} title={title}
-              className="h-8 w-8 grid place-items-center rounded-xl transition-all disabled:opacity-25"
+              className="h-8 w-10 grid place-items-center rounded-xl transition-all disabled:opacity-25"
               style={{
                 background:  active ? "rgba(139,92,246,0.12)" : "transparent",
                 color:       active ? "#a78bfa"               : "var(--fg-4)",
                 border:      active ? "1px solid rgba(139,92,246,0.25)" : "1px solid transparent",
               }}>
-              <Icon className="h-3.5 w-3.5" />
+               <Icon className="h-5 w-5" />
             </button>
           ))}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 min-h-full flex flex-col gap-4">
+      <div className="min-h-0" style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", }} >
+        <div className="w-full px-4 sm:px-6 flex flex-col gap-4" style={{ minHeight: "100%", maxWidth: "760px", marginLeft: "auto", marginRight: "auto", paddingTop: conversation.length === 0 ? "24px" : "28px", paddingBottom: "24px", }} >
           {conversation.length === 0 && !partial && (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-              className="flex-1 flex flex-col items-center justify-center gap-7 text-center">
+              className="flex flex-col items-center justify-center gap-6 text-center" style={{ minHeight: "calc(100vh - 220px)", paddingTop: "20px", paddingBottom: "20px", }}>
 
               <MicOrb isListening={isListening} isProcessing={isProcessing} />
 
@@ -319,8 +320,42 @@ export default function Assistant() {
               )}
             </motion.div>
           )}
-          {conversation.length > 0 && <div className="flex-1" />}
+          {/* {conversation.length > 0 && <div className="flex-1" />} */}
 
+          <AnimatePresence>
+            {noteModeActive && (
+              <motion.div
+                key="live-note"
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                transition={{ duration: 0.22 }}
+                className="rounded-2xl border px-4 py-3"
+                style={{
+                  background: "rgba(139,92,246,0.08)",
+                  borderColor: "rgba(139,92,246,0.25)",
+                  color: "var(--fg)",
+                }}
+              >
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "#a78bfa" }}>
+                    Live Note Mode
+                  </p>
+                  <span className="text-[10px] font-semibold" style={{ color: "#10b981" }}>
+                    Listening…
+                  </span>
+                </div>
+
+                <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--fg-2)" }}>
+                  {liveNoteText || "Start speaking. Your note will appear here..."}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {conversation.length > 0 && (
+            <div style={{ height: "12px", flexShrink: 0 }} />
+          )}
           <AnimatePresence initial={false}>
             {conversation.map((msg) => (
               <motion.div key={msg.id}
@@ -378,16 +413,21 @@ export default function Assistant() {
             )}
           </AnimatePresence>
           <AnimatePresence>
-            {isProcessing && !partial && (
+            {isProcessing && !partial && conversation.length > 0 && (
               <motion.div
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className="flex justify-start gap-2.5">
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex justify-start gap-2.5"
+              >
                 <AiAvatar />
-                <div style={{
-                  background: "var(--surface)",
-                  border: "1px solid var(--border-s)",
-                  borderRadius: "4px 18px 18px 18px",
-                }}>
+                <div
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border-s)",
+                    borderRadius: "4px 18px 18px 18px",
+                  }}
+                >
                   <ThinkingDots />
                 </div>
               </motion.div>
@@ -397,8 +437,8 @@ export default function Assistant() {
           <div ref={bottomRef} />
         </div>
       </div>
-      <div className="shrink-0 border-t" style={{ borderColor: "var(--border-s)", background: "var(--bg)" }}>
-        <div className="max-w-2xl mx-auto px-4 sm:px-5 py-3 space-y-2.5">
+      <div className="shrink-0 border-t" style={{ borderColor: "var(--border-s)", background: "var(--bg)", zIndex: 20, }} >
+        <div className="w-full px-4 sm:px-5 space-y-2" style={{ maxWidth: "760px", marginLeft: "auto", marginRight: "auto", paddingTop: "14px", paddingBottom: "14px", }} >
 
           <AnimatePresence>
             {inputMode && (
@@ -415,7 +455,7 @@ export default function Assistant() {
                     onKeyDown={handleTextKeyDown}
                     placeholder="Type a command…"
                     className="flex-1 rounded-2xl px-4 py-2.5 text-sm outline-none"
-                    style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--fg)" }}
+                    style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--fg)",marginBottom: "15px" }}
                   />
                   <motion.button
                     onClick={handleSendText}

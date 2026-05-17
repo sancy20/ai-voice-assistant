@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { API_URL as API } from "../config/api";
 
 const AuthContext = createContext(null);
-const API = "http://127.0.0.1:8000/api";
 
 function parseJwt(token) {
   try { return JSON.parse(atob(token.split(".")[1])); }

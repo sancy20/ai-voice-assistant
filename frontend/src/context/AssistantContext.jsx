@@ -1,5 +1,7 @@
 import { createContext, useContext, useRef, useState, useEffect, useCallback } from "react";
 import { emitAction, emitMedia, emitMediaControl, emitResults, emitSearchControl } from "../components/actionBus";
+import { API_BASE, AUDIO_WS_URL } from "../config/api";
+import { useAuth } from "./AuthContext";
 
 const Ctx = createContext(null);
 
@@ -25,6 +27,7 @@ const SAFE_SITES = {
 };
 
 export function AssistantProvider({ children }) {
+  const { user, token, refreshUser } = useAuth();
   const sessionId = useRef(crypto?.randomUUID?.() || `sess_${Date.now()}`);
 
   const [connStatus, setConnStatus] = useState("Disconnected");
@@ -34,6 +37,8 @@ export function AssistantProvider({ children }) {
   const [partial, setPartial]       = useState("");
   const [finalText, setFinalText]   = useState("");
   const [conversation, setConversation] = useState([]);
+  const [liveNoteText, setLiveNoteText] = useState("");
+  const [noteModeActive, setNoteModeActive] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
 
   const holdRef        = useRef(false);
@@ -71,6 +76,15 @@ export function AssistantProvider({ children }) {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
+  useEffect(() => {
+    setConversation([]);
+    setPartial("");
+    setFinalText("");
+    emitResults(null);
+
+    sessionId.current = crypto?.randomUUID?.() || `sess_${Date.now()}`;
+  }, [user?.id]);
+
   const doIntent = useCallback(([type, value, amount]) => {
     if (type === "scroll") {
       const px = Number.isFinite(amount) ? amount : 420;
@@ -79,6 +93,9 @@ export function AssistantProvider({ children }) {
       if (value === "back") window.history.back();
       else if (value === "home") window.location.href = "/";
     } else if (type === "open") {
+      const rawTarget = String(value || "") .toLowerCase() .replace(/^open\s+/i, "") .trim();
+      const siteAliases = { git: "github", "git hub": "github", openai: "chatgpt", };
+      const target = siteAliases[rawTarget] || rawTarget;
       const url = SAFE_SITES[(value || "").toLowerCase().trim()];
       if (url) openTab(url);
     } else if (type === "search") {
@@ -89,6 +106,10 @@ export function AssistantProvider({ children }) {
 
   const handleMsg = useCallback((data) => {
     if (!data || typeof data !== "object") return;
+
+    if (data.token_usage) {
+      refreshUser?.();
+    }
 
     if (data.type === "partial") {
       if (holdRef.current || wakeRef.current || noteModeRef.current) {
@@ -104,22 +125,77 @@ export function AssistantProvider({ children }) {
 
     if (data.type === "note_mode_started") {
       noteModeRef.current = true;
-      setFinalText(data.message || "Note mode on. Listening continuously.");
+      setNoteModeActive(true);
+      setLiveNoteText("");
+      const message = data.message || "Note mode is now on. I am listening continuously.";
+      setFinalText(message);
       setPartial("");
       setStatusSafe("listening");
+      addMsg("assistant", message);
+      emitAction({ text: message, kind: "say", durationMs: 5000 });
+      try {
+        if (!recordingRef.current) {
+          ensureMic();
+        }
+        sendConfig("ptt");
+      } catch {}
+
       return;
     }
     if (data.type === "note_mode_update") {
-      setFinalText(data.text || "");
-      setPartial("(listening...)");
+      const noteText = data.text || "";
+      setLiveNoteText(noteText);
+      setFinalText(noteText);
+      setPartial("");
       setStatusSafe("listening");
       return;
     }
     if (data.type === "note_mode_stopped") {
       noteModeRef.current = false;
-      setFinalText(data.note_text || "");
+      setNoteModeActive(false);
+      const finalNote = data.note_text || liveNoteText || "";
+      setLiveNoteText(finalNote);
+      setFinalText(finalNote);
       setPartial("");
       setStatusSafe("idle");
+      addMsg("assistant", finalNote ? `Note saved: ${finalNote}` : "Note mode stopped.");
+      emitAction({
+        text: finalNote ? "Note saved successfully." : "Note mode stopped.",
+        kind: "say",
+        durationMs: 5000,
+      });
+      setTimeout(async () => {
+        if (!wakeRef.current && !holdRef.current) {
+          await stopAudio();
+        }
+      }, 300);
+      return;
+    }
+
+    if (data.type === "reminder_created") {
+      const reminder = data.reminder || {};
+      const task = reminder.task || reminder.text || "your reminder";
+      const time = reminder.time_text || reminder.time || "";
+
+      const message = data.message || `Reminder set: ${task}${time ? ` at ${time}` : ""}`;
+
+      setFinalText(message);
+      setPartial("");
+      setStatusSafe("idle");
+
+      addMsg("assistant", message);
+      emitAction({
+        text: message,
+        kind: "say",
+        durationMs: 6000,
+      });
+
+      setTimeout(async () => {
+        if (!wakeRef.current && !noteModeRef.current && !holdRef.current) {
+          await stopAudio();
+        }
+      }, 300);
+
       return;
     }
 
@@ -134,7 +210,7 @@ export function AssistantProvider({ children }) {
       setPartial("");
       setStatusSafe("processing");
 
-      if (text) addMsg("user", text);
+      if (text && !data.fromTextInput) addMsg("user", text);
       if (message) {
         addMsg("assistant", message);
         emitAction({ text: message, kind: "say", durationMs: 12000 });
@@ -147,9 +223,24 @@ export function AssistantProvider({ children }) {
           subtitle: aData?.query ? `Top results for "${aData.query}"` : "Top search results",
           items: aData?.results || [],
         });
-      } else if (kind === "media_search" && aData?.results?.length) {
-        emitMedia({ provider: aData.provider || "youtube", query: aData.query || "", results: aData.results, selectedIndex: 0 });
-        emitAction({ text: message || "Opening media results", kind: "say", durationMs: 6000 });
+      } else if (kind === "media_search") {
+        if (aData?.results?.length) {
+          emitMedia({
+            provider: aData.provider || "youtube",
+            query: aData.query || "",
+            results: aData.results,
+            selectedIndex: 0
+          });
+          emitAction({
+            text: message || "Opening media results",
+            kind: "say",
+            durationMs: 6000
+          });
+        } else {
+          const msg = "No YouTube results found. Please check YOUTUBE_API_KEY or try another command.";
+          addMsg("assistant", msg);
+          emitAction({ text: msg, kind: "warning", durationMs: 6000 });
+        }
       } else if (kind === "media_pause")   { emitMediaControl({ type: "pause" });  emitAction({ text: "Media paused",          kind: "say", durationMs: 2500 }); }
         else if (kind === "media_resume")  { emitMediaControl({ type: "resume" }); emitAction({ text: "Media resumed",         kind: "say", durationMs: 2500 }); }
         else if (kind === "media_next")    { emitMediaControl({ type: "next" });   emitAction({ text: "Playing next",          kind: "say", durationMs: 2500 }); }
@@ -159,11 +250,12 @@ export function AssistantProvider({ children }) {
         else if (kind === "search_prev")   { emitSearchControl({ type: "prev" });  emitAction({ text: "Previous result",       kind: "search", durationMs: 2500 }); }
         else if (kind === "search_open_result") { emitSearchControl({ type: "open", index: aData.index || 1 }); emitAction({ text: `Opening result ${aData.index || 1}`, kind: "search", durationMs: 2500 }); }
         else if (kind === "open") {
-          const raw = (aData.target || "").toLowerCase().trim();
-          const url = SAFE_SITES[raw]
-            || (raw.includes(".") ? `https://${raw}` : `https://${raw}.com`);
-          // window.open is blocked from WebSocket handlers — emit a clickable link instead
-          emitAction({ text: `Open ${aData.target}`, kind: "open_url", url, durationMs: 14000 });
+          const rawTarget = String(aData.target || "") .toLowerCase() .replace(/^open\s+/i, "") .trim(); if ( rawTarget.includes("result") || ["first", "second", "third", "fourth", "fifth"].includes(rawTarget) ) { emitAction({ text: "Please use the search result command again.", kind: "warning", durationMs: 4000, }); return; }
+          const siteAliases = { git: "github", "git hub": "github", openai: "chatgpt", };
+          const target = siteAliases[rawTarget] || rawTarget;
+          const url = SAFE_SITES[target] 
+            || (target.includes(".") ? `https://${target}` : `https://www.${target}.com`);
+          emitAction({ text: `Open ${target}`, kind: "open_url", url, durationMs: 14000, });
         }
         else if (kind === "scroll")  { setTimeout(() => doIntent(["scroll", aData.direction || "down"]), 650); }
         else if (kind === "navigate"){ setTimeout(() => doIntent(["navigate", aData.direction || "back"]), 650); }
@@ -185,26 +277,41 @@ export function AssistantProvider({ children }) {
     }
 
     if (data.type === "no_speech" || data.type === "empty") {
-      if (!holdRef.current) { setStatusSafe("idle"); }
+      if (noteModeRef.current) {
+        setStatusSafe("listening");
+        return;
+      }
+
+      if (!holdRef.current) {
+        setStatusSafe("idle");
+      }
     }
-  }, [setStatusSafe, addMsg, doIntent]);
+  }, [setStatusSafe, addMsg, doIntent, refreshUser]);
 
   const connectWS = useCallback(() => {
     if (unmountedRef.current) return;
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
     if (reconnectRef.current) { clearTimeout(reconnectRef.current); reconnectRef.current = null; }
 
-    const ws = new WebSocket("ws://127.0.0.1:8000/ws/audio");
+    const ws = new WebSocket(AUDIO_WS_URL);
     ws.binaryType = "arraybuffer";
 
     ws.onopen = () => {
-      if (unmountedRef.current) { ws.close(); return; }
+      if (unmountedRef.current) {
+        ws.close();
+        return;
+      }
+
       reconnectDelay.current = 1000;
       setConnStatus("Connected");
+
       ws.send(JSON.stringify({
-        type: "config", session_id: sessionId.current,
+        type: "config",
+        session_id: sessionId.current,
         sample_rate: audioCtxRef.current?.sampleRate || 16000,
-        model_key: "base", wake_mode: wakeRef.current ? "wake" : "ptt",
+        model_key: "base",
+        wake_mode: wakeRef.current ? "wake" : "ptt",
+        token,
       }));
     };
 
@@ -225,7 +332,7 @@ export function AssistantProvider({ children }) {
     wsRef.current?.send(JSON.stringify({
       type: "config", session_id: sessionId.current,
       sample_rate: audioCtxRef.current?.sampleRate || 16000,
-      model_key: "base", wake_mode,
+      model_key: "base", wake_mode, token,
     }));
   };
 
@@ -331,8 +438,12 @@ export function AssistantProvider({ children }) {
         sendConfig("wake");
       } else {
         setTimeout(async () => {
-          if (!wakeRef.current && !noteModeRef.current) await stopAudio();
-        }, 800);
+          if (!wakeRef.current && !noteModeRef.current) {
+            await stopAudio();
+          } else {
+            sendConfig(noteModeRef.current ? "ptt" : "wake");
+          }
+        }, 1500);
       }
     }
   };
@@ -365,23 +476,34 @@ export function AssistantProvider({ children }) {
     addMsg("user", trimmed);
     setStatusSafe("processing");
     try {
-      const res = await fetch("http://127.0.0.1:8000/assistant/query", {
+      const res = await fetch(`${API_BASE}/assistant/query`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ text: trimmed }),
       });
       if (res.ok) {
         const data = await res.json();
-        handleMsg(data);
+        handleMsg({ ...data, fromTextInput: true });
       } else {
-        addMsg("assistant", "Sorry, I couldn't process that request.");
+        let message = "Sorry, I couldn't process that request.";
+
+        try {
+          const err = await res.json();
+          message = err.detail || message;
+        } catch {}
+
+        addMsg("assistant", message);
+        emitAction({ text: message, kind: "warning", durationMs: 6000 });
         setStatusSafe("idle");
       }
     } catch {
       addMsg("assistant", "Connection error. Please check the server.");
       setStatusSafe("idle");
     }
-  }, [addMsg, setStatusSafe, handleMsg]);
+  }, [addMsg, setStatusSafe, handleMsg, token]);
 
   useEffect(() => {
     unmountedRef.current = false;
@@ -397,6 +519,7 @@ export function AssistantProvider({ children }) {
     <Ctx.Provider value={{
       connStatus, status, isHolding, wakeEnabled,
       partial, finalText, conversation, audioLevel,
+      noteModeActive, liveNoteText,
       onHoldStart, onHoldEnd, onWakeToggle, clearConversation, sendText,
     }}>
       {children}

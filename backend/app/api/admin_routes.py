@@ -91,8 +91,6 @@ def assistant_low_confidence_commands(
     return get_low_confidence_commands(session_id=session_id, limit=limit)
 
 
-# ── User management ──────────────────────────────────────────────────────────
-
 @users_router.get("", response_model=list[UserOut])
 def list_users(
     search: Optional[str] = Query(default=None),

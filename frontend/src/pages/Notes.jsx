@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { StickyNote, RefreshCw, X, Mic2, Search } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-
-const API = "http://127.0.0.1:8000";
+import { API_URL } from "../config/api";
 
 const NOTE_PALETTES = [
   { bg: "rgba(99,102,241,0.12)",  border: "rgba(99,102,241,0.22)",  dot: "#6366f1",  text: "#a5b4fc" },
@@ -39,7 +38,7 @@ export default function Notes() {
   const fetchNotes = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/notes`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/notes`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         setNotes(Array.isArray(data.notes) ? data.notes : []);
@@ -66,7 +65,7 @@ export default function Notes() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--fg)" }}>Notes</h1>
-            <p className="text-sm mt-0.5" style={{ color: "var(--fg-4)" }}>
+            <p className="text-sm mt-0.5" style={{ color: "var(--fg-4)", marginBottom: "10px"}}>
               {loading ? "Loading…" : `${notes.length} note${notes.length !== 1 ? "s" : ""}`}
             </p>
           </div>
@@ -79,7 +78,7 @@ export default function Notes() {
 
         {/* Search */}
         {notes.length > 0 && (
-          <div className="relative">
+          <div className="relative" style={{ marginBottom: "20px" }}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
               style={{ color: "var(--fg-4)" }} />
             <input value={search} onChange={e => setSearch(e.target.value)}
@@ -95,7 +94,7 @@ export default function Notes() {
       <div className="mb-5 flex items-center gap-3 rounded-2xl border px-4 py-3"
         style={{
           background: "linear-gradient(135deg, rgba(139,92,246,0.06) 0%, transparent 100%)",
-          borderColor: "rgba(139,92,246,0.18)",
+          borderColor: "rgba(139,92,246,0.18)", marginBottom: "20px"
         }}>
         <div className="h-7 w-7 grid place-items-center rounded-lg shrink-0"
           style={{ background: "var(--accent-2)" }}>

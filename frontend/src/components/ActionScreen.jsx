@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Mic, Wifi, WifiOff, Search, ArrowDown, ArrowUp, ExternalLink } from "lucide-react";
 import { subscribeAction } from "./actionBus";
 
-// Per-kind color accent (left border + icon tint). Background is always var(--bg-subtle).
 const KIND = {
   wake:        { color: "var(--green)",     border: "rgba(34,197,94,0.35)"   },
   disconnect:  { color: "var(--rose)",      border: "rgba(239,68,68,0.35)"   },
@@ -29,6 +28,14 @@ const ICON = {
 export default function ActionScreen() {
   const [item, setItem] = useState(null);
   const timerRef = useRef(null);
+
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     return subscribeAction((payload) => {
@@ -93,16 +100,17 @@ export default function ActionScreen() {
   };
 
   return (
-    <div className={`fixed inset-x-0 bottom-20 lg:bottom-6 z-[70] flex justify-center px-4 ${isOpenUrl ? "pointer-events-auto" : "pointer-events-none"}`}>
+    <div className={`fixed z-[70] ${ isOpenUrl ? "pointer-events-auto" : "pointer-events-none" }`} style={{ left: isMobile ? "50%" : "57%", transform: "translateX(-50%)", width: "min(420px, calc(100vw - 32px))", bottom: isMobile ? "130px" : "80px", }} >
       <AnimatePresence mode="wait">
         {item && (
           <motion.div
             key={item.id}
             initial={{ opacity: 0, y: 10, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0,  scale: 1    }}
-            exit={{   opacity: 0, y: -6,  scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="max-w-sm w-full">
+            className="w-full"
+          >
             {isOpenUrl ? (
               <a
                 href={item.url}

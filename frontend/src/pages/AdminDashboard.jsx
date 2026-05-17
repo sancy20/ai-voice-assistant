@@ -11,8 +11,8 @@ import {
   Ban, Unlock, Trash2, Crown, ChevronDown, Zap, ScrollText,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { API_BASE } from "../config/api";
 
-const API = "http://127.0.0.1:8000";
 const COLORS = ["#6ee7b7","#93c5fd","#fde68a","#f9a8d4","#a5b4fc","#fb923c","#34d399","#60a5fa"];
 const PLANS  = ["free","pro","business"];
 const ROLES  = ["user","admin"];
@@ -80,7 +80,7 @@ function AnalyticsTab({ token }) {
     setLoading(true); setError("");
     try {
       const params = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
-      const res = await fetch(`${API}/admin/assistant/dashboard${params}`, {
+      const res = await fetch(`${API_BASE}/admin/assistant/dashboard${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
@@ -98,11 +98,21 @@ function AnalyticsTab({ token }) {
   const failedLogs  = data?.failed_commands ?? [];
   const lowLogs     = data?.low_confidence_commands ?? [];
   const filteredLogs = logFilter === "failed" ? failedLogs : logFilter === "low" ? lowLogs : recentLogs;
+  const cleanLogList = (logs = []) =>
+  logs.filter((log) => {
+    const transcript = (log.transcript || "").trim();
+    const message = (log.message || "").trim();
+    if (!transcript && !message && log.status === "success") {
+      return false;
+    }
+
+    return true;
+  });
 
   return (
     <div className="space-y-8">
       {/* Session filter */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" style={{ marginBottom: "20px" }}>
         <input
           value={sessionId} onChange={e => setSessionId(e.target.value)}
           placeholder="Filter by session ID…"
@@ -117,8 +127,8 @@ function AnalyticsTab({ token }) {
         <div className="rounded-xl border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-sm text-rose-400">{error}</div>
       )}
 
-      <section>
-        <h2 className="text-xs font-semibold t-fg-40 uppercase tracking-widest mb-4">Overview</h2>
+      <section style={{ marginBottom: "20px" }}>
+        <h2 className="text-xs font-semibold t-fg-40 uppercase tracking-widest mb-4" style={{ marginBottom: "5px" }}>Overview</h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatCard icon={Activity}      label="Total Commands"   value={overview.total_commands} />
           <StatCard icon={CheckCircle2}  label="Successful"       value={overview.success_commands}  color="text-emerald-400"
@@ -166,8 +176,8 @@ function AnalyticsTab({ token }) {
         </div>
       </section>
 
-      <section>
-        <div className="flex items-center justify-between mb-4">
+      <section style={{ marginTop: "20px" }}>
+        <div className="flex items-center justify-between mb-4" style={{ marginBottom: "5px" }}>
           <h2 className="text-xs font-semibold t-fg-40 uppercase tracking-widest">Command Logs</h2>
           <div className="flex gap-2">
             {[{ key:"all", label:"Recent" }, { key:"failed", label:"Failed" }, { key:"low", label:"Low Confidence" }].map(({ key, label }) => (
@@ -199,7 +209,7 @@ function AnalyticsTab({ token }) {
                   <tbody>
                     {filteredLogs.map((log, i) => (
                       <tr key={i} className="border-b t-border-sm hover:t-bg-item transition">
-                        <td className="px-5 py-3 t-fg-80 max-w-xs truncate">{log.transcript || "—"}</td>
+                        <td className="px-5 py-3 t-fg-80 max-w-xs truncate"> {log.transcript || log.message || "—"} </td>
                         <td className="px-5 py-3 t-fg-60">{log.intent || "—"}</td>
                         <td className="px-5 py-3 t-fg-60">{log.action_kind || "—"}</td>
                         <td className="px-5 py-3">
@@ -253,7 +263,7 @@ function UsersTab({ token, selfId }) {
       if (planF)  params.set("plan",   planF);
       if (roleF)  params.set("role",   roleF);
       if (bannedF !== "") params.set("banned", bannedF);
-      const res = await fetch(`${API}/admin/users?${params}`, {
+      const res = await fetch(`${API_BASE}/admin/users?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -270,7 +280,7 @@ function UsersTab({ token, selfId }) {
   const patch = async (userId, body) => {
     setPending(p => ({ ...p, [userId]: true }));
     try {
-      const res = await fetch(`${API}/admin/users/${userId}`, {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
@@ -290,7 +300,7 @@ function UsersTab({ token, selfId }) {
     if (!confirm(`Delete "${username}"? This cannot be undone.`)) return;
     setPending(p => ({ ...p, [userId]: true }));
     try {
-      const res = await fetch(`${API}/admin/users/${userId}`, {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -307,7 +317,7 @@ function UsersTab({ token, selfId }) {
   return (
     <div className="space-y-5">
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2" style={{ marginBottom: "20px" }}>
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/25 pointer-events-none" />
           <input value={search} onChange={e => setSearch(e.target.value)}
@@ -479,7 +489,6 @@ function UsersTab({ token, selfId }) {
   );
 }
 
-// ── Audit Log tab ─────────────────────────────────────────────────────────────
 function AuditTab({ token }) {
   const [logs,    setLogs]    = useState([]);
   const [loading, setLoading] = useState(true);
@@ -488,7 +497,7 @@ function AuditTab({ token }) {
   const fetchLogs = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API}/admin/users/audit-logs`, {
+      const res = await fetch(`${API_BASE}/admin/users/audit-logs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -509,7 +518,7 @@ function AuditTab({ token }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" style={{ marginBottom: "20px" }}>
         <p className="text-xs t-fg-30">{logs.length} entr{logs.length !== 1 ? "ies" : "y"}</p>
         <button onClick={fetchLogs}
           className="flex items-center gap-1.5 rounded-xl border t-border t-bg-item px-3 py-1.5 text-xs t-fg-70 hover:t-bg-hover transition">
@@ -561,7 +570,6 @@ function AuditTab({ token }) {
   );
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { token, user } = useAuth();
   const [tab, setTab] = useState("analytics");

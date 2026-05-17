@@ -87,7 +87,8 @@ export default function Auth({ mode: initial = "login" }) {
         <motion.div
           initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
-          className="flex items-center gap-2 mb-10 select-none">
+          className="flex items-center gap-2 mb-10 select-none"
+          style={{ marginBottom: "10px" }}>
           <div className="h-7 w-7 rounded-lg grid place-items-center text-white shrink-0"
             style={{ background: "var(--accent)" }}>
             {MIC}
@@ -104,7 +105,8 @@ export default function Auth({ mode: initial = "login" }) {
             <motion.div key={mode}
               initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}
-              className="mb-6">
+              className="mb-6"
+              style={{ marginBottom: "24px" }}>
               <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--fg)" }}>
                 {isLogin ? "Welcome back" : "Create account"}
               </h1>
@@ -138,7 +140,7 @@ export default function Auth({ mode: initial = "login" }) {
               onSubmit={handleSubmit}
               className="space-y-3.5">
               <motion.div {...field(0)}>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--fg-3)" }}>Email</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--fg-3)"}}>Email</label>
                 <input type="email" required autoComplete="email"
                   value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@example.com"
@@ -154,7 +156,7 @@ export default function Auth({ mode: initial = "login" }) {
                     transition={{ duration: 0.22 }}
                     className="overflow-hidden">
                     <div className="pt-0.5">
-                      <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--fg-3)" }}>Username</label>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--fg-3)", marginTop: "15px"}}>Username</label>
                       <input type="text" required autoComplete="username"
                         value={username} onChange={e => setUsername(e.target.value)}
                         placeholder="yourname"
@@ -166,7 +168,7 @@ export default function Auth({ mode: initial = "login" }) {
               </AnimatePresence>
               <motion.div {...field(0.06)}>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-medium" style={{ color: "var(--fg-3)" }}>Password</label>
+                  <label className="text-xs font-medium" style={{ color: "var(--fg-3)" , marginTop: "15px"}}>Password</label>
                   {isLogin && (
                     <Link to="/forgot-password"
                       className="text-[11px] transition-colors hover:text-white/70"
@@ -182,7 +184,7 @@ export default function Auth({ mode: initial = "login" }) {
                     value={password} onChange={e => setPassword(e.target.value)}
                     placeholder={isLogin ? "••••••••" : "Min. 8 characters"}
                     className="w-full rounded-xl px-3.5 py-2.5 pr-10 text-sm outline-none transition-colors focus:border-white/20"
-                    style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--fg)" }} />
+                    style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--fg)"}}/>
                   <button type="button" onClick={() => setShow(v => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 outline-none transition-opacity hover:opacity-80"
                     style={{ color: "var(--fg-4)" }}>
@@ -212,7 +214,7 @@ export default function Auth({ mode: initial = "login" }) {
               <motion.button {...field(0.1)}
                 type="submit" disabled={loading}
                 className="w-full rounded-xl py-2.5 text-sm font-semibold text-white flex items-center justify-center gap-2 transition-opacity disabled:opacity-55 mt-1"
-                style={{ background: "var(--accent)" }}>
+                style={{ background: "var(--accent)", marginTop: "25px"}}>
                 {loading
                   ? <><Loader2 className="h-4 w-4 animate-spin" /> {isLogin ? "Signing in…" : "Creating…"}</>
                   : isLogin ? "Sign in" : "Create account"
@@ -225,7 +227,7 @@ export default function Auth({ mode: initial = "login" }) {
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ duration: 0.4, delay: 0.25 }}
           className="text-center text-xs mt-5"
-          style={{ color: "var(--fg-4)" }}>
+          style={{ color: "var(--fg-4)", marginTop: "10px" }}>
           {isLogin ? "Don't have an account? " : "Already have an account? "}
           <button onClick={() => switchTo(isLogin ? "register" : "login")}
             className="font-medium transition-colors hover:text-white/80"

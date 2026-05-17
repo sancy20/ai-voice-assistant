@@ -57,15 +57,15 @@ export default function MediaOverlay() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[60]"
-          style={{ background: "rgba(8,8,8,0.97)" }}>
+          className="fixed top-0 right-0 bottom-[92px] left-0 md:left-[220px] z-[60] flex items-center justify-center p-3 sm:p-4"
+          style={{ background: "transparent" }}>
 
           <motion.div
             initial={{ y: 20, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 20, opacity: 0 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="mx-auto flex h-full w-full max-w-[1600px] flex-col overflow-hidden p-3 sm:p-4">
+            className="pointer-events-auto flex h-full max-h-full w-full max-w-[1450px] flex-col overflow-hidden">
 
             <div className="flex flex-col h-full rounded-2xl overflow-hidden border"
               style={{ background: "rgb(14,14,14)", borderColor: "rgba(255,255,255,0.08)" }}>

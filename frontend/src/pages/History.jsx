@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw, Search, CheckCircle2, XCircle, Clock, Cpu } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-
-const API = "http://127.0.0.1:8000";
+import { API_BASE } from "../config/api";
 
 const FILTERS = [
   { key: "all",     label: "All" },
@@ -68,7 +67,7 @@ export default function History() {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/assistant/logs?limit=100`, {
+      const res = await fetch(`${API_BASE}/admin/assistant/logs?limit=100`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setLogs(await res.json());
@@ -98,7 +97,7 @@ export default function History() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--fg)" }}>History</h1>
-            <p className="text-sm mt-0.5" style={{ color: "var(--fg-4)" }}>
+            <p className="text-sm mt-0.5" style={{ color: "var(--fg-4)", marginBottom: "10px" }}>
               {loading ? "Loading…" : `${logs.length} commands recorded`}
             </p>
           </div>
@@ -111,7 +110,7 @@ export default function History() {
 
         {/* Stats row */}
         {!loading && logs.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4" style={{ marginBottom: "20px" }}>
             {[
               { label: "Total",   value: logs.length,   icon: Cpu,          color: "var(--accent-fg)" },
               { label: "Success", value: successCount,   icon: CheckCircle2, color: "var(--green)" },
@@ -132,7 +131,7 @@ export default function History() {
         )}
 
         {/* Search + filters */}
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row gap-2" style={{ marginBottom: "30px" }}>
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
               style={{ color: "var(--fg-4)" }} />

@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
-
-const API = "http://127.0.0.1:8000";
+import { API_URL } from "../config/api";
 
 const MIC_SVG = (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -44,7 +43,7 @@ export default function ResetPassword() {
     if (pw_strength < 2)      { setError("Password is too weak");   return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API}/api/auth/reset-password`, {
+      const res = await fetch(`${API_URL}/api/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, new_password: password }),

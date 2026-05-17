@@ -6,20 +6,28 @@ import {
   ArrowRight, Activity, CheckCircle2, TrendingUp, Sparkles,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-
-const API = "http://127.0.0.1:8000";
+import { API_BASE } from "../config/api";
 
 const PLAN_LIMITS = { free: 10, pro: 500, business: 2000 };
 
 const INTENT_LABELS = {
-  web_search:       "Web Search",
-  media_search:     "Media",
-  open_url:         "Open URL",
-  alarm:            "Alarm",
-  reminder:         "Reminder",
-  note:             "Note",
-  general_response: "General",
-  current_time:     "Time",
+  search: "Search",
+  media_search: "Media",
+  open: "Open Site",
+  navigate: "Navigate",
+  scroll: "Scroll",
+  time: "Time",
+  create_note: "Note",
+  note_mode_stopped: "Note",
+  create_reminder: "Reminder",
+  list_reminders: "Reminders",
+  create_task: "Task",
+  list_tasks: "Tasks",
+  delete_task: "Task",
+  create_alarm: "Alarm",
+  list_alarms: "Alarms",
+  delete_alarm: "Alarm",
+  unknown: "Unknown",
 };
 
 const QUICK = [
@@ -131,13 +139,24 @@ export default function Dashboard() {
   useEffect(() => {
     if (!token) return;
     Promise.all([
-      fetch(`${API}/admin/assistant/overview`, { headers: { Authorization: `Bearer ${token}` } })
+      fetch(`${API_BASE}/admin/assistant/overview`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${API}/admin/assistant/logs?limit=8`, { headers: { Authorization: `Bearer ${token}` } })
+      fetch(`${API_BASE}/admin/assistant/logs?limit=8`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : []).catch(() => []),
     ]).then(([ov, logs]) => {
       setOverview(ov);
-      setRecentLogs(Array.isArray(logs) ? logs : []);
+      const cleanLogs = Array.isArray(logs)
+        ? logs
+            .filter((log) => {
+              const transcript = (log.transcript || "").trim();
+              const message = (log.message || "").trim();
+              if (!transcript && !message) return false;
+              return true;
+            })
+            .slice(0, 5)
+        : [];
+
+      setRecentLogs(cleanLogs);
       setLoading(false);
     });
   }, [token]);
@@ -173,7 +192,7 @@ export default function Dashboard() {
         className="relative rounded-2xl overflow-hidden mb-6 p-4 sm:p-6 lg:p-8"
         style={{
           background: "linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(99,102,241,0.06) 100%)",
-          border: "1px solid rgba(139,92,246,0.18)",
+          border: "1px solid rgba(139,92,246,0.18)", marginBottom: "45px" 
         }}>
         {/* Ambient glow */}
         <div className="absolute -top-12 -right-12 h-40 w-40 rounded-full pointer-events-none"
@@ -225,7 +244,7 @@ export default function Dashboard() {
       </motion.div>
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-6" style={{ marginBottom: "15px" }}>
         <StatCard
           label="Tokens left" value={credits} icon={Zap} delay={0} loading={false}
           accentColor={tokenColor}
@@ -256,7 +275,7 @@ export default function Dashboard() {
         <div className="space-y-6">
           <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--fg-4)" }}>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--fg-4)", marginBottom: "5px" }}>
                 Quick commands
               </p>
               <button onClick={() => navigate("/assistant")}
@@ -287,7 +306,7 @@ export default function Dashboard() {
           </motion.section>
           {!loading && intentBreakdown.length > 0 && (
             <motion.section initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--fg-4)" }}>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--fg-4)", marginTop: "15px", marginBottom: "5px" }}>
                 Command breakdown
               </p>
               <div className="rounded-2xl border p-5 space-y-4"
@@ -368,13 +387,13 @@ export default function Dashboard() {
                       log.status === "success" ? "bg-emerald-500" : "bg-red-500"}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm truncate font-medium" style={{ color: "var(--fg-2)" }}>
-                        {log.transcript || "—"}
+                        {log.transcript || log.message || "No transcript"}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
                         {log.intent && (
                           <span className="text-[10px] px-1.5 py-px rounded-full font-medium"
                             style={{ background: "var(--accent-2)", color: "var(--accent-fg)" }}>
-                            {INTENT_LABELS[log.intent] ?? log.intent}
+                            {INTENT_LABELS[log.intent] ?? "Other"}
                           </span>
                         )}
                         <span className="text-[10px]" style={{ color: "var(--fg-4)" }}>

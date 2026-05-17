@@ -95,15 +95,15 @@ export default function CenterSearchResults({ setCenterPanelActive }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
-          className="fixed inset-0 z-[60] px-4 py-6 md:px-6"
-          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+          className="fixed top-0 right-0 bottom-[92px] left-0 md:left-[220px] z-[60] flex items-center justify-center px-4 py-6 md:px-6"
+          style={{ background: "transparent" }}
         >
           <motion.div
             initial={{ y: 20, opacity: 0, scale: 0.97 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 20, opacity: 0, scale: 0.97 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="mx-auto flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl border"
+            className="flex max-h-full h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl border"
             style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}
           >
             {/* Header */}

@@ -95,7 +95,6 @@ def detect_builtin_command_intent(text: str):
     if text.startswith("open "):
         target = text.replace("open ", "", 1).strip()
         base = re.sub(r"\.(com|tv|org|net|io)$", "", target).strip()
-        # Video sites → open in MediaOverlay
         if base in ("youtube", "twitch", "vimeo"):
             return "media_search", 0.95, {"provider": "youtube", "query": f"{base} trending"}
         if target:
@@ -280,9 +279,35 @@ def build_action_and_message(intent_name: str, transcript: str, slots: dict):
     return None, None, None
 
 def detect_reminder_intent(transcript: str):
-    t = transcript.lower()
+    t = (transcript or "").lower().strip()
+    t = re.sub(r"[,\.!?]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
 
-    if "remind me" in t or "set reminder" in t:
+    list_patterns = [
+        "show reminder",
+        "show reminders",
+        "show my reminder",
+        "show my reminders",
+        "my reminder",
+        "my reminders",
+        "all reminders",
+        "view reminders",
+    ]
+
+    if any(p in t for p in list_patterns):
+        return "list_reminders"
+
+    create_patterns = [
+        "remind me",
+        "set reminder",
+        "set a reminder",
+        "remember me",
+        "remember to",
+        "reminder to",
+        "notify me",
+    ]
+
+    if any(p in t for p in create_patterns):
         return "create_reminder"
 
     return None
@@ -307,7 +332,6 @@ def detect_media_intent(text: str):
         if query:
             return "media_search", {"provider": "youtube", "query": query}
 
-    # Generic "play X" → YouTube search (catches "play lofi", "play jazz", etc.)
     if text.startswith("play "):
         query = text.replace("play ", "", 1).strip()
         if query and len(query) > 1:
@@ -405,10 +429,16 @@ def detect_search_control_intent(text: str):
     if text in ("previous", "previous one", "back"):
         return "search_prev", {}
 
-    m = re.search(r"(open|select)\s+(second|third|first|\d+)", text)
+    m = re.search(r"(open|select)\s+(first|second|third|fourth|fifth|\d+)(?:\s+result)?", text)
 
     if m:
-        idx = int(m.group(2))
+        value = m.group(2)
+
+        if value.isdigit():
+            idx = int(value)
+        else:
+            idx = NUMBER_WORDS.get(value, 1)
+
         return "search_open_result", {"index": idx}
 
     for word, value in NUMBER_WORDS.items():

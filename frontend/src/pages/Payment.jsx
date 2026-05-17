@@ -6,8 +6,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-
-const API = "http://127.0.0.1:8000";
+import { API_URL } from "../config/api";
 
 const PLAN_DATA = {
   pro:      { label: "Pro Plan",      price: 9.99,  period: "/ month", tokens: 500  },
@@ -18,7 +17,7 @@ const TAX_RATE = 0.09;
 const METHODS = [
   { id: "card", label: "Credit Card", icon: CreditCard },
   { id: "qr",   label: "QR / Mobile", icon: QrCode   },
-  { id: "bank", label: "Bank Transfer", icon: Building2 },
+  // { id: "bank", label: "Bank Transfer", icon: Building2 },
 ];
 
 const CARD_BRANDS = {
@@ -205,23 +204,53 @@ export default function Payment() {
   const handlePay = async (e) => {
     e.preventDefault();
     setError("");
+
     if (method === "card") {
-      if (cardNum.replace(/\s/g, "").length < 16) return setError("Enter a valid 16-digit card number");
-      if (expiry.length < 5) return setError("Enter a valid expiry date (MM/YY)");
-      if (cvv.length < 3) return setError("Enter the CVV code");
+      if (cardNum.replace(/\s/g, "").length < 16) {
+        return setError("Enter a valid 16-digit card number");
+      }
+      if (expiry.length < 5) {
+        return setError("Enter a valid expiry date (MM/YY)");
+      }
+      if (cvv.length < 3) {
+        return setError("Enter the CVV code");
+      }
     }
+
     setPaying(true);
+
     try {
-      const res = await fetch(`${API}/api/subscription/upgrade`, {
+      const res = await fetch(`${API_URL}/subscription/upgrade`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ plan: planKey }),
       });
-      await new Promise(r => setTimeout(r, 1200));
-      if (res.ok) await refreshUser();
-    } catch {}
-    setPaying(false);
-    setSuccess(true);
+
+      await new Promise((r) => setTimeout(r, 1200));
+
+      if (!res.ok) {
+        let message = "Payment failed. Please try again.";
+        try {
+          const data = await res.json();
+          message = data.detail || message;
+        } catch {}
+
+        setError(message);
+        setSuccess(false);
+        return;
+      }
+
+      await refreshUser();
+      setSuccess(true);
+    } catch (err) {
+      setError("Cannot connect to server. Please check backend is running.");
+      setSuccess(false);
+    } finally {
+      setPaying(false);
+    }
   };
 
   /* ── Success screen ── */
@@ -234,21 +263,26 @@ export default function Payment() {
           transition={{ type: "spring", stiffness: 280, damping: 22 }}
           className="max-w-sm w-full text-center space-y-6">
 
-          <motion.div
-            initial={{ scale: 0 }} animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 420, damping: 18, delay: 0.15 }}
-            className="mx-auto h-18 w-18 rounded-full grid place-items-center"
-            style={{
-              width: 72, height: 72,
-              background: "var(--green-2)",
-              border: "1px solid rgba(34,197,94,0.3)",
-              boxShadow: "0 0 32px rgba(34,197,94,0.2)",
-            }}>
-            <Check className="h-9 w-9" style={{ color: "var(--green)" }} />
-          </motion.div>
+          <div style={{ display: "flex", justifyContent: "center", width: "100%", marginBottom: "28px" }}>
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 420, damping: 18, delay: 0.15 }}
+              className="grid place-items-center rounded-full"
+              style={{
+                width: "72px",
+                height: "72px",
+                background: "var(--green-2)",
+                border: "1px solid rgba(34,197,94,0.3)",
+                boxShadow: "0 0 32px rgba(34,197,94,0.2)",
+              }}
+            >
+              <Check style={{ width: "36px", height: "36px", color: "var(--green)" }} />
+            </motion.div>
+          </div>
 
           <div>
-            <p className="text-2xl font-bold tracking-tight" style={{ color: "var(--fg)" }}>Payment successful</p>
+            <p className="text-2xl font-bold tracking-tight" style={{ color: "var(--fg)", marginTop: "20px"}}>Payment successful</p>
             <p className="text-sm mt-2" style={{ color: "var(--fg-4)" }}>
               You're now on the <span className="font-medium" style={{ color: "var(--fg-2)" }}>{plan.label}</span>.
               Enjoy {plan.tokens} tokens/month.
@@ -256,7 +290,7 @@ export default function Payment() {
           </div>
 
           <div className="rounded-xl border divide-y overflow-hidden text-left"
-            style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            style={{ background: "var(--surface)", borderColor: "var(--border)", marginTop: "20px"}}>
             {[
               ["Plan", plan.label],
               ["Billing", plan.period.replace("/", "").trim()],
@@ -272,7 +306,7 @@ export default function Payment() {
 
           <button onClick={() => navigate("/")}
             className="w-full rounded-xl py-3 text-sm font-semibold text-white"
-            style={{ background: "var(--accent)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
+            style={{ background: "var(--accent)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)", marginTop: "20px"}}>
             Back to Dashboard
           </button>
         </motion.div>
@@ -287,7 +321,7 @@ export default function Payment() {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-        className="flex items-center gap-3 mb-7">
+        className="flex items-center gap-3 mb-7" style={{marginBottom: "10px"}}>
         <button onClick={() => navigate(-1)}
           className="h-8 w-8 grid place-items-center rounded-lg border transition-colors hover:bg-[var(--surface-h)]"
           style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--fg-3)" }}>
@@ -333,18 +367,18 @@ export default function Payment() {
               <motion.div key="card"
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.22 }}
-                className="space-y-5">
+                className="space-y-5" style={{marginTop: "15px"}}>
 
                 <CardPreview num={cardNum} expiry={expiry} holder={holder} cvv={cvv} flipped={flipped} />
 
-                <form onSubmit={handlePay} className="space-y-4">
+                <form onSubmit={handlePay} className="space-y-4" style={{marginTop: "15px"}}>
                   <Field label="Card number"
                     value={cardNum}
                     onChange={e => setCardNum(fmtCard(e.target.value))}
                     placeholder="0000 0000 0000 0000"
                     inputMode="numeric" />
 
-                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3" style={{marginTop: "15px", marginBottom: "10px"}}>
                     <Field label="Expiry"
                       value={expiry}
                       onChange={e => setExpiry(fmtExpiry(e.target.value))}
@@ -368,7 +402,7 @@ export default function Payment() {
                     {error && (
                       <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                         className="text-xs px-3.5 py-2.5 rounded-xl border"
-                        style={{ background: "var(--rose-2)", borderColor: "rgba(239,68,68,0.2)", color: "var(--rose)" }}>
+                        style={{ background: "var(--rose-2)", borderColor: "rgba(239,68,68,0.2)", color: "var(--rose)", marginTop: "15px"}}>
                         {error}
                       </motion.p>
                     )}
@@ -379,7 +413,7 @@ export default function Payment() {
                     onMouseLeave={() => setFlipped(false)}
                     whileTap={{ scale: 0.98 }}
                     className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white disabled:opacity-60"
-                    style={{ background: "var(--accent)", boxShadow: "0 4px 20px rgba(99,102,241,0.3)" }}>
+                    style={{ background: "var(--accent)", boxShadow: "0 4px 20px rgba(99,102,241,0.3)", marginTop: "20px",}}> 
                     {paying
                       ? <><Loader2 className="h-4 w-4 animate-spin" />Processing…</>
                       : <><Lock className="h-3.5 w-3.5" />Pay ${total.toFixed(2)}</>}
@@ -420,7 +454,7 @@ export default function Payment() {
             )}
 
             {/* ── Bank transfer ── */}
-            {method === "bank" && (
+            {/* {method === "bank" && (
               <motion.div key="bank"
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.22 }}
@@ -458,7 +492,7 @@ export default function Payment() {
                   <Check className="h-4 w-4" /> I've sent the transfer
                 </button>
               </motion.div>
-            )}
+            )} */}
           </AnimatePresence>
         </div>
 
@@ -469,7 +503,7 @@ export default function Payment() {
 
           {/* Summary card */}
           <div className="rounded-xl border overflow-hidden"
-            style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            style={{ background: "var(--surface)", borderColor: "var(--border)", marginTop: "10px", marginBottom: "15px"}}>
             <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border-s)" }}>
               <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--fg-4)" }}>
                 Order summary

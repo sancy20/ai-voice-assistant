@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 
-// ── Particle canvas (adapts to theme) ─────────────────────────────────────────
 function ParticleCanvas({ isDark }) {
   const ref   = useRef(null);
   const raf   = useRef(null);
@@ -58,7 +57,6 @@ function ParticleCanvas({ isDark }) {
   return <canvas ref={ref} className="fixed inset-0 pointer-events-none" style={{ zIndex: 0, opacity: isDark ? 0.55 : 0.4 }} />;
 }
 
-// ── Dot grid (mic silhouette) ─────────────────────────────────────────────────
 function DotGrid({ isDark }) {
   const cols = 26, rows = 22, gap = 18;
   const isFilled = (r, c) => {
@@ -86,8 +84,8 @@ function DotGrid({ isDark }) {
   const solidGlow  = isDark ? "0 0 6px rgba(167,139,250,0.45)" : "0 0 4px rgba(124,58,237,0.3)";
   const ringGlow   = isDark ? "0 0 5px rgba(196,181,253,0.35)" : "0 0 4px rgba(124,58,237,0.2)";
   return (
-    <div className="absolute inset-y-0 right-0 w-1/2 pointer-events-none hidden lg:flex items-center justify-center overflow-hidden" style={{ zIndex: 1 }}>
-      <div style={{ position: "relative", width: cols*gap, height: rows*gap, flexShrink: 0 }}>
+    <div className="absolute inset-y-0 right-0 w-1/2 pointer-events-none hidden lg:flex items-center justify-center overflow-hidden" style={{ zIndex: 1}}>
+      <div style={{ position: "relative", width: cols*gap, height: rows*gap, flexShrink: 0, transform: "translate(120px, 70px)" }}>
         {dots.map(({ r, c, type }, i) => (
           <motion.div key={i}
             initial={{ opacity: 0, scale: 0 }}
@@ -108,7 +106,6 @@ function DotGrid({ isDark }) {
   );
 }
 
-// ── Demo chat ─────────────────────────────────────────────────────────────────
 const MSGS = [
   { role: "user",      text: "play lofi beats",                        ms: 400  },
   { role: "assistant", text: "Opening YouTube — lofi hip hop radio 🎵", ms: 1600 },
@@ -171,7 +168,6 @@ function DemoChat() {
   );
 }
 
-// ── Static data ───────────────────────────────────────────────────────────────
 const USE_CASES = [
   { icon: Search,     title: "Web search",      desc: "Get instant answers without typing a single character.", tag: "Search"  },
   { icon: Music,      title: "Media control",   desc: "Play, pause, skip — hands-free music and video control.", tag: "Media"   },
@@ -182,9 +178,9 @@ const USE_CASES = [
 ];
 
 const PLANS = [
-  { key:"free",     label:"Free",     price:"$0",     period:null,  tokens:"10 tokens / month",    desc:"Perfect for trying out VoiceAI.",    features:["10 AI tokens / month","Voice commands","Notes & reminders","Basic history"],                                          cta:"Get started free",  ctaTo:"/register" },
-  { key:"pro",      label:"Pro",      price:"$9.99",  period:"/mo", tokens:"500 tokens / month",   desc:"For power users who talk a lot.",    features:["500 AI tokens / month","Priority processing","Full history","Media & search","Wake-word mode"], popular:true, cta:"Start free trial",  ctaTo:"/register" },
-  { key:"business", label:"Business", price:"$29.99", period:"/mo", tokens:"2,000 tokens / month", desc:"For teams and heavy workloads.",      features:["2,000 AI tokens / month","Everything in Pro","Admin analytics","API access","Priority support"],                      cta:"Contact us",        ctaTo:"/register" },
+  { key:"free",     label:"Free",     price:"$0",     period:null,  tokens:"10 tokens / month",    desc:"Perfect for trying out VoiceAI.",    features: [ "10 AI tokens / 7 days", "Hold-to-speak voice assistant", "Basic voice commands", "Basic notes & reminders", "Limited history", ],                                          cta:"Get started free",  ctaTo:"/register" },
+  { key:"pro",      label:"Pro",      price:"$9.99",  period:"/mo", tokens:"500 tokens / month",   desc:"For power users who talk a lot.",    features: [ "500 AI tokens / month", "Unlimited notes", "Unlimited reminders, tasks & alarms", "Full history access", "Search & media commands", "Priority processing", "Data export", ], popular:true, cta:"Start free trial",  ctaTo:"/register" },
+  { key:"business", label:"Business", price:"$29.99", period:"/mo", tokens:"2,000 tokens / month", desc:"For teams and heavy workloads.",     features: [ "2,000 AI tokens / month", "Everything in Pro", "Admin dashboard", "User management", "Usage analytics", "Export reports", "API access", "Business priority support", ],                      cta:"Contact us",        ctaTo:"/register" },
 ];
 
 const BLOG_POSTS = [
@@ -206,7 +202,6 @@ const NAV_LINKS = [
   { label:"Blog",      href:"#blog"      },
 ];
 
-// ── Page ──────────────────────────────────────────────────────────────────────
 export default function Landing() {
   const { theme, toggle } = useTheme();
   const isDark = theme !== "light";
@@ -226,7 +221,6 @@ export default function Landing() {
     if (el) el.scrollIntoView({ behavior: "smooth" });
   };
 
-  // ── Theme-aware color maps ──────────────────────────────────────────────────
   const bg          = isDark ? "#07080f"                   : "#ffffff";
   const fg          = isDark ? "#eef0ff"                   : "#0d0e17";
   const fgDim       = isDark ? "rgba(238,240,255,0.36)"    : "rgba(13,14,23,0.45)";
@@ -255,7 +249,7 @@ export default function Landing() {
 
   const sectionTitle = { fontSize:"clamp(1.5rem,4vw,2.8rem)", fontWeight:800, letterSpacing:"-0.025em", color:fg, lineHeight:1.15 };
   const sectionLabel = { fontSize:"10px", fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:"rgba(167,139,250,0.65)" };
-  const WRAP = "w-full max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-12";
+  const WRAP = "w-full max-w-[1920px] mx-auto px-5 sm:px-8 lg:px-14 xl:px-20 2xl:px-24";
 
   return (
     <div style={{ background: bg, color: fg, minHeight: "100vh", transition: "background 0.25s, color 0.25s", overflowX: "hidden" }}>
@@ -337,11 +331,11 @@ export default function Landing() {
 
       {/* ── Hero ── */}
       <section id="product" className="relative z-10 overflow-x-hidden"
-        style={{ paddingTop: "clamp(80px, 14vh, 140px)", paddingBottom: "clamp(48px, 6vh, 72px)" }}>
+        style={{ paddingTop: "clamp(96px, 4vh, 150px)", paddingBottom: "clamp(24px, 3vh, 48px)" }}>
         <DotGrid isDark={isDark} />
 
         <div className={`relative ${WRAP}`}>
-          <div className="max-w-2xl mx-auto lg:mx-0 text-center lg:text-left">
+          <div className="max-w-4xl mx-auto lg:mx-0 text-center lg:text-left">
 
             <motion.div initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
               transition={{ duration:0.4 }}
@@ -358,21 +352,22 @@ export default function Landing() {
 
             <motion.p initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
               transition={{ duration:0.5, delay:0.14, ease:[0.16,1,0.3,1] }}
-              className="mt-4 sm:mt-5 text-sm sm:text-base lg:text-lg leading-relaxed max-w-lg mx-auto lg:mx-0"
-              style={{ color: fgDim }}>
+              className="mt-5 sm:mt-6 text-sm sm:text-base lg:text-lg leading-relaxed max-w-4xl mx-auto lg:mx-0"
+              style={{ color: fgDim, marginTop: "20px"}}>
               Search, play music, set reminders, take notes — without touching your keyboard.
             </motion.p>
 
             <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }}
               transition={{ duration:0.5, delay:0.2, ease:[0.16,1,0.3,1] }}
-              className="mt-6 sm:mt-7 flex flex-col min-[480px]:flex-row flex-wrap items-center gap-2.5 sm:gap-3 justify-center lg:justify-start">
+              className="mt-10 sm:mt-12 lg:mt-14 flex flex-col min-[480px]:flex-row flex-wrap items-center gap-3 sm:gap-4 justify-center lg:justify-start"
+              style={{ marginTop: "20px", marginBottom: "30px" }}>
               <Link to="/register"
-                className="w-full min-[480px]:w-auto inline-flex items-center justify-center gap-2 rounded-full px-6 sm:px-7 py-3 sm:py-3.5 text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95"
+                className="w-full min-[480px]:w-auto inline-flex items-center justify-center gap-2 rounded-full px-4 sm:px-5 py-3 sm:py-3.5 text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95"
                 style={{ background:"linear-gradient(135deg,#8b5cf6,#6366f1)", boxShadow:"0 4px 20px rgba(139,92,246,0.4)" }}>
                 Start for free <ArrowRight className="h-4 w-4" />
               </Link>
               <button onClick={() => scrollTo("#use-cases")}
-                className="w-full min-[480px]:w-auto inline-flex items-center justify-center gap-1.5 rounded-full px-5 sm:px-6 py-3 sm:py-3.5 text-sm font-medium transition-all"
+                className="w-full min-[480px]:w-auto inline-flex items-center justify-center gap-1.5 rounded-full px-5 sm:px-4 py-3 sm:py-3.5 text-sm font-medium transition-all"
                 style={{ border:`1px solid ${cardBorder}`, background: cardBg, color: fgDim }}>
                 <Play className="h-3.5 w-3.5" /> See it in action
               </button>
@@ -380,7 +375,7 @@ export default function Landing() {
 
             <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }}
               transition={{ delay:0.38, duration:0.5 }}
-              className="mt-8 sm:mt-10 grid grid-cols-3 gap-2 sm:gap-5 max-w-sm mx-auto lg:mx-0">
+              className="mt-10 sm:mt-12 grid grid-cols-3 gap-3 sm:gap-6 max-w-md mx-auto lg:mx-0">
               {STATS.map(({ value, label, icon: Icon }) => (
                 <div key={label} className="flex flex-col sm:flex-row items-center sm:items-start gap-1.5 sm:gap-2.5">
                   <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-xl grid place-items-center shrink-0"
@@ -399,12 +394,12 @@ export default function Landing() {
       </section>
 
       {/* ── Demo window ── */}
-      <section className="relative z-10 pb-6 overflow-x-hidden">
+      <section className="relative z-10 pb-12 sm:pb-16 overflow-x-hidden">
         <div className={WRAP}>
           <motion.div initial={{ opacity:0, y:20, scale:0.97 }} whileInView={{ opacity:1, y:0, scale:1 }}
             viewport={{ once:true }} transition={{ duration:0.55, ease:[0.16,1,0.3,1] }}
             className="rounded-2xl sm:rounded-3xl overflow-hidden border w-full mx-auto"
-            style={{ borderColor:"rgba(139,92,246,0.14)", maxWidth:760,
+            style={{ borderColor:"rgba(139,92,246,0.14)", maxWidth:980,
               background: isDark ? "rgba(8,7,18,0.9)" : "rgba(10,8,22,0.92)",
               backdropFilter:"blur(24px)" }}>
             <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor:"rgba(255,255,255,0.05)", background:"rgba(5,5,12,0.6)" }}>
@@ -423,25 +418,26 @@ export default function Landing() {
       <div className={WRAP}><div className="my-6" style={{ borderTop:`1px solid ${divider}` }} /></div>
 
       {/* ── Use Cases ── */}
-      <section id="use-cases" className="relative z-10 py-8 sm:py-12 lg:py-16 overflow-x-hidden">
+      <section id="use-cases" className="relative z-10 py-12 sm:py-16 lg:py-20 overflow-x-hidden">
         <div className={WRAP}>
           <motion.div initial={{ opacity:0, y:12 }} whileInView={{ opacity:1, y:0 }}
             viewport={{ once:true }} transition={{ duration:0.45 }}
-            className="mb-5 sm:mb-7">
+            className="mb-5 sm:mb-7"
+            style={{marginBottom: "15px"}}>
             <p className="mb-2.5" style={sectionLabel}>Use Cases</p>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
               <h2 style={sectionTitle}>Everything, <span style={grad}>hands-free.</span></h2>
-              <p className="text-sm max-w-xs" style={{ color: fgDim }}>From web searches to media control — all with one voice command.</p>
+              <p className="text-sm max-w-s" style={{ color: fgDim }}>From web searches to media control — all with one voice command.</p>
             </div>
           </motion.div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
             {USE_CASES.map(({ icon: Icon, title, desc, tag }, i) => (
               <motion.div key={title}
                 initial={{ opacity:0, y:14 }} whileInView={{ opacity:1, y:0 }}
                 viewport={{ once:true, margin:"-40px" }}
                 transition={{ duration:0.38, ease:[0.16,1,0.3,1], delay:i*0.05 }}
-                className="rounded-2xl p-5 transition-all duration-200 cursor-default"
+                className="rounded-2xl p-6 min-h-[145px] transition-all duration-200 cursor-default"
                 style={{ background: cardBg, border:`1px solid ${cardBorder}` }}
                 onMouseEnter={e => { e.currentTarget.style.background = cardHoverBg; e.currentTarget.style.borderColor = cardHoverBd; }}
                 onMouseLeave={e => { e.currentTarget.style.background = cardBg;      e.currentTarget.style.borderColor = cardBorder; }}>
@@ -464,28 +460,29 @@ export default function Landing() {
       <div className={WRAP}><div className="my-2" style={{ borderTop:`1px solid ${divider}` }} /></div>
 
       {/* ── Pricing ── */}
-      <section id="pricing" className="relative z-10 py-8 sm:py-12 lg:py-16 overflow-x-hidden">
+      <section id="pricing" className="relative z-10 py-12 sm:py-16 lg:py-20 overflow-x-hidden">
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
           <div style={{ width:900, height:600, borderRadius:"50%", background:`radial-gradient(ellipse, ${isDark ? "rgba(139,92,246,0.04)" : "rgba(139,92,246,0.03)"} 0%, transparent 65%)` }} />
         </div>
         <div className={`relative ${WRAP}`}>
           <motion.div initial={{ opacity:0, y:12 }} whileInView={{ opacity:1, y:0 }}
             viewport={{ once:true }} transition={{ duration:0.45 }}
-            className="mb-5 sm:mb-7">
+            className="mb-5 sm:mb-7"
+            style={{marginBottom: "15px"}}>
             <p className="mb-2.5" style={sectionLabel}>Pricing</p>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
               <h2 style={sectionTitle}>Simple, transparent <span style={grad}>pricing.</span></h2>
-              <p className="text-sm max-w-xs" style={{ color: fgDim }}>Start free. Upgrade when you're ready. No hidden fees.</p>
+              <p className="text-sm max-w-s" style={{ color: fgDim }}>Start free. Upgrade when you're ready. No hidden fees.</p>
             </div>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-6">
             {PLANS.map((plan, i) => (
               <motion.div key={plan.key}
                 initial={{ opacity:0, y:16 }} whileInView={{ opacity:1, y:0 }}
                 viewport={{ once:true, margin:"-40px" }}
                 transition={{ duration:0.42, ease:[0.16,1,0.3,1], delay:i*0.07 }}
-                className="relative rounded-2xl p-6 flex flex-col overflow-hidden"
+                className="relative rounded-2xl p-7 min-h-[330px] flex flex-col overflow-hidden"
                 style={{
                   background: plan.popular
                     ? isDark ? "linear-gradient(160deg, rgba(139,92,246,0.13) 0%, rgba(99,102,241,0.07) 100%)" : "rgba(139,92,246,0.05)"
@@ -524,7 +521,7 @@ export default function Landing() {
                   className="w-full flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition-all hover:opacity-90"
                   style={plan.popular
                     ? { background:"linear-gradient(135deg,#8b5cf6,#6366f1)", color:"#fff", boxShadow:"0 4px 16px rgba(139,92,246,0.35)" }
-                    : { background: cardBg, border:`1px solid ${cardBorder}`, color: isDark ? "rgba(238,240,255,0.65)" : "rgba(13,14,23,0.6)" }}>
+                    : { background: cardBg, border:`1px solid ${cardBorder}`, color: isDark ? "rgba(238,240,255,0.65)" : "rgba(13,14,23,0.6)", marginTop:"30px",}}>
                   {plan.cta} {plan.popular && <ArrowRight className="h-3 w-3" />}
                 </Link>
               </motion.div>
@@ -533,7 +530,7 @@ export default function Landing() {
 
           <motion.p initial={{ opacity:0 }} whileInView={{ opacity:1 }}
             viewport={{ once:true }} transition={{ delay:0.3 }}
-            className="text-xs mt-7" style={{ color: fgFaint }}>
+            className="text-xs mt-7" style={{ color: fgFaint,marginTop: "10px"}}>
             Need more? Token top-up packs from $0.99 — pay only for what you use.
           </motion.p>
         </div>
@@ -542,11 +539,12 @@ export default function Landing() {
       <div className={WRAP}><div className="my-2" style={{ borderTop:`1px solid ${divider}` }} /></div>
 
       {/* ── Blog ── */}
-      <section id="blog" className="relative z-10 py-8 sm:py-12 lg:py-16 overflow-x-hidden">
+      <section id="blog" className="relative z-10 py-12 sm:py-16 lg:py-20 overflow-x-hidden">
         <div className={WRAP}>
           <motion.div initial={{ opacity:0, y:12 }} whileInView={{ opacity:1, y:0 }}
             viewport={{ once:true }} transition={{ duration:0.45 }}
-            className="mb-5 sm:mb-7">
+            className="mb-5 sm:mb-7"
+            style={{marginBottom: "15px"}}>
             <p className="mb-2.5" style={sectionLabel}>Blog</p>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
               <h2 style={sectionTitle}>Latest from <span style={grad}>VoiceAI.</span></h2>
@@ -557,13 +555,13 @@ export default function Landing() {
             </div>
           </motion.div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
             {BLOG_POSTS.map((post, i) => (
               <motion.article key={post.title}
                 initial={{ opacity:0, y:14 }} whileInView={{ opacity:1, y:0 }}
                 viewport={{ once:true, margin:"-40px" }}
                 transition={{ duration:0.38, ease:[0.16,1,0.3,1], delay:i*0.06 }}
-                className="group rounded-2xl p-5 cursor-pointer transition-all duration-200"
+                className="group rounded-2xl p-6 min-h-[165px] cursor-pointer transition-all duration-200"
                 style={{ background: cardBg, border:`1px solid ${cardBorder}` }}
                 onMouseEnter={e => { e.currentTarget.style.background = cardHoverBg; e.currentTarget.style.borderColor = cardHoverBd; }}
                 onMouseLeave={e => { e.currentTarget.style.background = cardBg;      e.currentTarget.style.borderColor = cardBorder; }}>
@@ -587,9 +585,9 @@ export default function Landing() {
       <div className={WRAP}><div className="my-2" style={{ borderTop:`1px solid ${divider}` }} /></div>
 
       {/* ── Final CTA ── */}
-      <section className="relative z-10 py-8 sm:py-12 lg:py-16 overflow-x-hidden">
+      <section className="relative z-10 py-20 sm:py-24 lg:py-28 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div style={{ width:600, height:500, borderRadius:"50%", background:`radial-gradient(ellipse, ${isDark?"rgba(139,92,246,0.08)":"rgba(139,92,246,0.05)"} 0%, transparent 70%)` }} />
+          <div style={{ width:520, height:420, maxWidth:"100%", borderRadius:"50%", background:`radial-gradient(ellipse, ${isDark?"rgba(139,92,246,0.08)":"rgba(139,92,246,0.05)"} 0%, transparent 70%)` }} />
         </div>
         <div className={`relative z-10 ${WRAP}`}>
           <motion.div initial={{ opacity:0, y:16 }} whileInView={{ opacity:1, y:0 }}
@@ -600,14 +598,14 @@ export default function Landing() {
               Start talking to<br /><span style={grad}>your computer.</span>
             </h2>
             <p className="mb-7 text-sm" style={{ color: fgDim }}>Free to start. No credit card required.</p>
-            <div className="flex flex-col min-[480px]:flex-row flex-wrap items-center gap-2.5 sm:gap-3">
+            <div className="flex flex-col min-[480px]:flex-row flex-wrap items-center gap-2.5 sm:gap-3" style={{marginTop: "15px"}}>
               <Link to="/register"
-                className="w-full min-[480px]:w-auto inline-flex items-center justify-center gap-2 rounded-full px-7 sm:px-8 py-3 sm:py-3.5 text-sm font-semibold text-white transition-all hover:opacity-90"
+                className="w-full min-[480px]:w-auto inline-flex items-center justify-center gap-2 rounded-full px-7 sm:px-5 py-2 sm:py-3.5 text-sm font-semibold text-white transition-all hover:opacity-90"
                 style={{ background:"linear-gradient(135deg,#8b5cf6,#6366f1)", boxShadow:"0 4px 28px rgba(139,92,246,0.4)" }}>
                 Create free account <ArrowRight className="h-4 w-4" />
               </Link>
               <Link to="/login"
-                className="w-full min-[480px]:w-auto inline-flex items-center justify-center gap-1.5 rounded-full px-6 py-3 sm:py-3.5 text-sm font-medium transition-all"
+                className="w-full min-[480px]:w-auto inline-flex items-center justify-center gap-1.5 rounded-full px-6 py-2 sm:py-3.5 text-sm font-medium transition-all"
                 style={{ border:`1px solid ${cardBorder}`, background: cardBg, color: fgDim }}>
                 Sign in
               </Link>

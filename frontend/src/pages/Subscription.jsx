@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Check, Zap, Loader2, Sparkles, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-
-const API = "http://127.0.0.1:8000";
+import { API_URL } from "../config/api";
 
 const PLANS = [
   {
@@ -12,7 +11,7 @@ const PLANS = [
     label: "Free",
     price: "$0",
     tokens: 10,
-    features: ["10 AI tokens / month", "Voice commands", "Notes & reminders", "Basic history"],
+    features: ["10 AI tokens / 7 days", "Hold-to-speak voice assistant", "Basic voice commands", "Basic notes & reminders", "Limited history",],
   },
   {
     key: "pro",
@@ -21,7 +20,7 @@ const PLANS = [
     period: "/mo",
     tokens: 500,
     popular: true,
-    features: ["500 AI tokens / month", "Priority processing", "Full history", "Media & search", "Wake-word mode"],
+    features: ["500 AI tokens / month", "Unlimited notes", "Unlimited reminders, tasks & alarms", "Full history access", "Search & media commands", "Priority processing", "Data export",],
   },
   {
     key: "business",
@@ -29,7 +28,7 @@ const PLANS = [
     price: "$29.99",
     period: "/mo",
     tokens: 2000,
-    features: ["2 000 AI tokens / month", "Everything in Pro", "Admin analytics", "API access", "Priority support"],
+    features: ["2,000 AI tokens / month", "Everything in Pro", "Admin dashboard", "User management", "Usage analytics", "Export reports", "API access", "Business priority support"],
   },
 ];
 
@@ -82,7 +81,7 @@ export default function Subscription() {
     }
     setPlanLoading(planKey);
     try {
-      const res = await fetch(`${API}/api/subscription/upgrade`, {
+      const res = await fetch(`${API_URL}/api/subscription/upgrade`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ plan: planKey }),
@@ -96,7 +95,7 @@ export default function Subscription() {
   const buyPack = async (tokens) => {
     setPackLoading(tokens);
     try {
-      const res = await fetch(`${API}/api/subscription/credits/purchase`, {
+      const res = await fetch(`${API_URL}/api/subscription/credits/purchase`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ tokens }),
@@ -117,7 +116,7 @@ export default function Subscription() {
       {/* ── Header ── */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="mb-10">
+        className="mb-10" style={{ marginBottom: "20px" }}>
         <h1 className="text-2xl font-bold tracking-tight mb-1" style={{ color: "var(--fg)" }}>
           Plans &amp; Tokens
         </h1>
@@ -130,8 +129,8 @@ export default function Subscription() {
       </motion.div>
 
       {/* ── Plans ── */}
-      <section className="mb-12">
-        <p className="text-xs font-semibold uppercase tracking-widest mb-5" style={{ color: "var(--fg-4)" }}>
+      <section className="mb-12" style={{ marginBottom: "30px" }}>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-5" style={{ color: "var(--fg-4)", marginBottom: "5px"}}>
           Monthly plans
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -184,22 +183,22 @@ export default function Subscription() {
                 </div>
 
                 {/* Price */}
-                <div className="mb-2">
-                  <span className="text-3xl sm:text-4xl font-black tracking-tight" style={{ color: "var(--fg)" }}>
+                <div className="mb-2" style={{ marginBottom: "20px" }}>
+                  <span className="text-3xl sm:text-4xl font-black tracking-tight" style={{ color: "var(--fg)", }}>
                     {plan.price}
                   </span>
                   {plan.period && (
                     <span className="text-sm ml-1 font-medium" style={{ color: "var(--fg-4)" }}>{plan.period}</span>
                   )}
                 </div>
-                <p className="text-xs mb-5" style={{ color: "var(--fg-4)" }}>
-                  {plan.tokens} tokens/month
+                <p className="text-xs mb-5" style={{ color: "var(--fg-4)", marginBottom: "5px"}}>
+                  {plan.key === "free" ? `${plan.tokens} tokens / 7 days` : `${plan.tokens} tokens/month`}
                 </p>
 
                 {/* Features */}
-                <ul className="space-y-2.5 flex-1 mb-6">
+                <ul className="space-y-2.5 flex-1 mb-6" style={{ marginBottom: "50px" }}>
                   {plan.features.map(f => (
-                    <li key={f} className="flex items-center gap-2.5 text-xs" style={{ color: "var(--fg-3)" }}>
+                    <li key={f} className="flex items-center gap-2.5 text-xs" style={{ color: "var(--fg-3)", marginBottom: "5px"}}>
                       <div className="h-4 w-4 rounded-full grid place-items-center shrink-0"
                         style={{ background: "var(--green-2)" }}>
                         <Check className="h-2.5 w-2.5" style={{ color: "var(--green)" }} />
@@ -243,7 +242,7 @@ export default function Subscription() {
       {/* ── Token packs ── */}
       <section>
         <div className="flex items-center justify-between mb-5">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--fg-4)" }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--fg-4)", marginBottom: "5px" }}>
             Buy tokens
           </p>
           <p className="text-xs" style={{ color: "var(--fg-4)" }}>One-time purchase, never expires</p>

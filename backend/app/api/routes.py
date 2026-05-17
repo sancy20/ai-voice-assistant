@@ -1,6 +1,11 @@
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException
+from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from app.state import asr_service
+from sqlalchemy.orm import Session
+from app.db.database import get_db
+from app.models.user import User
+from app.services.auth_service import get_current_user
+from app.services.token_service import charge_user_tokens
 
 from app.config import (
     WAKE_SR,
@@ -43,7 +48,11 @@ async def predict_intent_endpoint(request: Request):
     return JSONResponse(pred)
 
 @router.post("/assistant/query")
-async def assistant_text_query(request: Request):
+async def assistant_text_query(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),):
+
     try:
         payload = await request.json()
     except Exception:
@@ -59,7 +68,13 @@ async def assistant_text_query(request: Request):
     except Exception:
         action, ui, message = {}, {}, f"I'm not sure how to handle: {text}"
 
-    return build_success_response(text, intent_name, confidence, message, action, ui)
+    response = build_success_response(text, intent_name, confidence, message, action, ui)
+
+    usage = charge_user_tokens(db, user.id, intent_name)
+    if usage:
+        response["token_usage"] = usage
+
+    return response
 
 
 @router.post("/transcribe")

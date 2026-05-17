@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 import { useAuth }  from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { API_URL as API } from "../config/api"
 
-const API = "http://127.0.0.1:8000/api";
 const PLAN_LIMITS = { free: 10, pro: 500, business: 2000, unlimited: Infinity };
 const PLAN_COLORS = { free: "#6b7280", pro: "#6366f1", business: "#f59e0b", unlimited: "#a78bfa" };
 const AVATAR_COLORS = ["#6366f1","#8b5cf6","#ec4899","#ef4444","#f97316","#22c55e","#3b82f6"];
@@ -60,7 +60,7 @@ function Section({ title, desc, delay = 0, children }) {
       style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       <div className="absolute top-0 left-0 right-0 h-px"
         style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.4), transparent)" }} />
-      <div className="px-5 py-4 border-b" style={{ borderColor: "var(--border-s)" }}>
+      <div className="px-5 py-4 border-b" style={{ borderColor: "var(--border-s)"}}>
         <p className="text-sm font-semibold" style={{ color: "var(--fg)" }}>{title}</p>
         {desc && <p className="text-xs mt-0.5" style={{ color: "var(--fg-4)" }}>{desc}</p>}
       </div>
@@ -210,7 +210,7 @@ export default function Profile() {
       {/* Account card */}
       <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
         className="rounded-2xl border p-6 mb-7 flex flex-col sm:flex-row sm:items-center gap-5"
-        style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        style={{ background: "var(--surface)", borderColor: "var(--border)", marginBottom: "10px" }}>
 
         {/* Avatar */}
         <div className="relative shrink-0 self-start sm:self-center">
@@ -277,18 +277,18 @@ export default function Profile() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 items-start">
 
         {/* ── Left column ── */}
-        <div className="space-y-5">
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
 
           {/* Profile */}
-          <Section title="Profile" desc="Your display name and email address." delay={0.04}>
-            <form onSubmit={saveProfile} className="space-y-4">
+          <Section title="Profile" desc="Your display name and email address." delay={0.04} >
+            <form onSubmit={saveProfile} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <InputField label="Username" icon={User}
                 value={username} onChange={e => setUsername(e.target.value)} placeholder="yourname" />
               <InputField label="Email" icon={Mail} type="email"
                 value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
               <button type="submit" disabled={saving}
                 className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
-                style={{ background: "var(--accent-grad)", boxShadow: "0 4px 16px rgba(139,92,246,0.3)" }}>
+                style={{ background: "var(--accent-grad)", boxShadow: "0 4px 16px rgba(139,92,246,0.3)", marginTop: "20px" }}>
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 Save changes
               </button>
@@ -332,18 +332,18 @@ export default function Profile() {
         </div>
 
         {/* ── Right column ── */}
-        <div className="space-y-5">
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
 
           {/* Security */}
           <Section title="Security" desc="Update your account password." delay={0.07}>
-            <form onSubmit={changePassword} className="space-y-4">
+            <form onSubmit={changePassword} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <InputField label="Current password" icon={Lock}
                 type={showOld ? "text" : "password"}
                 value={oldPw} onChange={e => setOldPw(e.target.value)}
                 placeholder="••••••••"
                 right={
                   <button type="button" onClick={() => setShowOld(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--fg-4)" }}>
+                    className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--fg-4)"}}>
                     {showOld ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
                 }
@@ -380,7 +380,7 @@ export default function Profile() {
               </div>
               <button type="submit" disabled={changingPw || !oldPw || !newPw}
                 className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-40"
-                style={{ background: "var(--accent-grad)", boxShadow: "0 4px 16px rgba(139,92,246,0.3)" }}>
+                style={{ background: "var(--accent-grad)", boxShadow: "0 4px 16px rgba(139,92,246,0.3)", marginTop: "20px"}}>
                 {changingPw ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
                 Change password
               </button>
@@ -389,7 +389,7 @@ export default function Profile() {
 
           {/* Plan & Usage */}
           <Section title="Plan & Usage" desc="Your current subscription and token usage." delay={0.13}>
-            <div className="space-y-4">
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               {/* Plan badge row */}
               <div className="flex items-center justify-between rounded-xl px-4 py-3"
                 style={{ background: `${planColor}12`, border: `1px solid ${planColor}28` }}>
@@ -421,7 +421,7 @@ export default function Profile() {
                       style={{ background: tokenColor }} />
                   </div>
                   <div className="flex justify-between text-[11px]" style={{ color: "var(--fg-4)" }}>
-                    <span>{Math.max(0, limit - credits)} remaining</span>
+                    <span>{credits} remaining</span>
                     <span>{usedPct}% used</span>
                   </div>
                 </div>
