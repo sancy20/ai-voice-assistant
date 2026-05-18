@@ -95,11 +95,42 @@ def build_note_mode_stopped(note_text: str, saved_note: dict | None = None):
     return payload
 
 def build_reminder_created(reminder: dict):
+    time_text = reminder.get("time_text") or reminder.get("time") or ""
+    task = reminder.get("task") or ""
+
     return {
         "type": "reminder_created",
         "status": "success",
-        "message": f"Reminder set: {reminder.get('task')} at {reminder.get('time')}",
+        "message": f"Reminder set: {task} at {time_text}",
         "reminder": reminder,
+    }
+
+def build_reminder_list(reminders: list[dict], transcript: str = ""):
+    if not reminders:
+        message = "You have no reminders."
+    else:
+        items = []
+        for idx, reminder in enumerate(reminders, start=1):
+            task = reminder.get("task") or ""
+            time_text = reminder.get("time_text") or reminder.get("time") or ""
+            items.append(f"{idx}. {task} at {time_text}")
+        message = "Your reminders are: " + " | ".join(items)
+
+    return {
+        "type": "assistant_response",
+        "status": "success",
+        "transcript": transcript,
+        "intent": "list_reminders",
+        "confidence": 0.95,
+        "message": message,
+        "action": {
+            "kind": "reminder_list",
+            "data": {"reminders": reminders},
+        },
+        "ui": {"widget": "reminder_list"},
+        "needs_followup": False,
+        "session_mode": "sleep",
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
 def build_task_created(task: dict):

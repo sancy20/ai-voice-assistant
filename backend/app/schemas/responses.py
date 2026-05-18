@@ -1,1 +1,0 @@
-# Reserved for future WebSocket-based streaming transport.

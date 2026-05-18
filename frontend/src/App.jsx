@@ -1,53 +1,82 @@
-import React, { useState } from "react";
-import AssistantWidget from "./components/AssistantWidget";
-import ActionScreen from "./components/ActionScreen";
-import MediaOverlay from "./components/MediaOverlay";
-import CenterSearchResults from "./components/CenterSearchResults";
+import { Suspense, lazy } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ThemeProvider }         from "./context/ThemeContext";
+import { AssistantProvider }     from "./context/AssistantContext";
+import { ToastProvider }         from "./context/ToastContext";
+import ProtectedRoute            from "./components/ProtectedRoute";
+import Layout                    from "./components/Layout";
+
+const Landing        = lazy(() => import("./pages/Landing"));
+const Auth           = lazy(() => import("./pages/Auth"));
+const Dashboard      = lazy(() => import("./pages/Dashboard"));
+const Assistant      = lazy(() => import("./pages/Assistant"));
+const History        = lazy(() => import("./pages/History"));
+const Notes          = lazy(() => import("./pages/Notes"));
+const Subscription   = lazy(() => import("./pages/Subscription"));
+const Profile        = lazy(() => import("./pages/Profile"));
+const Payment        = lazy(() => import("./pages/Payment"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword  = lazy(() => import("./pages/ResetPassword"));
+
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
+      <div className="h-7 w-7 rounded-full border-2 border-white/15 border-t-white/70 animate-spin" />
+    </div>
+  );
+}
+
+function ProtectedLayout({ children, adminOnly = false }) {
+  return (
+    <ProtectedRoute adminOnly={adminOnly}>
+      <Layout>{children}</Layout>
+    </ProtectedRoute>
+  );
+}
+
+function HomeRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return <PageLoader />;
+  if (user) {
+    if (user.is_admin) return <ProtectedLayout><Dashboard /></ProtectedLayout>;
+    return <Navigate to="/assistant" replace />;
+  }
+  return <Landing />;
+}
 
 export default function App() {
-  const [centerPanelActive, setCenterPanelActive] = useState(false);
   return (
-    <div className='min-h-screen bg-[rgb(33,33,33)] text-white'>
-      {!centerPanelActive && <ActionScreen />}
+    <ThemeProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <AssistantProvider>
+            <BrowserRouter>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route path="/"                 element={<HomeRoute />} />
+                  <Route path="/login"            element={<Auth mode="login" />} />
+                  <Route path="/register"         element={<Auth mode="register" />} />
+                  <Route path="/forgot-password"  element={<ForgotPassword />} />
+                  <Route path="/reset-password"   element={<ResetPassword />} />
 
-      <CenterSearchResults setCenterPanelActive={setCenterPanelActive} />
-      <MediaOverlay setCenterPanelActive={setCenterPanelActive} />
+                  <Route path="/dashboard"    element={<ProtectedLayout adminOnly><Dashboard /></ProtectedLayout>} />
+                  <Route path="/assistant"    element={<ProtectedLayout><Assistant /></ProtectedLayout>} />
+                  <Route path="/history"      element={<ProtectedLayout><History /></ProtectedLayout>} />
+                  <Route path="/notes"        element={<ProtectedLayout><Notes /></ProtectedLayout>} />
+                  <Route path="/subscription" element={<ProtectedLayout><Subscription /></ProtectedLayout>} />
+                  <Route path="/payment"      element={<ProtectedLayout><Payment /></ProtectedLayout>} />
+                  <Route path="/profile"      element={<ProtectedLayout><Profile /></ProtectedLayout>} />
+                  <Route path="/admin"        element={<ProtectedLayout adminOnly><AdminDashboard /></ProtectedLayout>} />
 
-      <main className='relative mx-auto max-w-5xl px-6 py-10'>
-        <header className='space-y-2'>
-          <h1 className='text-2xl font-semibold tracking-tight'>
-            Test Page for Voice Assistant
-          </h1>
-          <p className='text-sm text-white/70'>
-            Hold the button and speak. Partial captions show while listening.
-          </p>
-        </header>
-
-        <section className='mt-8 rounded-2xl border border-white/10 bg-white/5 p-6'>
-          <h2 className='text-sm font-semibold text-white/80'>Demo Area</h2>
-          <p className='mt-2 text-sm text-white/70'>
-            Try: <span className='text-white font-medium'>“open youtube”</span>,{" "}
-            <span className='text-white font-medium'>“scroll down”</span>,{" "}
-            <span className='text-white font-medium'>“search for cat”</span>,{" "}
-            <span className='text-white font-medium'>“what time is it”</span>.
-          </p>
-        </section>
-      </main>
-      <AssistantWidget />
-      {/* <div className='min-h-screen bg-slate-950 text-slate-100'>
-        <div className='p-4'>
-          <button
-            onClick={() =>
-              setMode(mode === "assistant" ? "recorder" : "assistant")
-            }
-            className='rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10'
-          >
-            Switch to: {mode === "assistant" ? "Recorder" : "Assistant"}
-          </button>
-        </div>
-
-        {mode === "recorder" ? <WakeWordRecorder /> : <AssistantWidget />}
-      </div> */}
-    </div>
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+          </AssistantProvider>
+        </ToastProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

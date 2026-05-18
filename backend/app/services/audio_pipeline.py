@@ -15,6 +15,10 @@ from app.config import (
     PTT_SILENCE_TIMEOUT_MS,
 )
 
+from app.db.database import SessionLocal
+from app.services.token_service import charge_user_tokens
+from fastapi import HTTPException
+
 POST_WAKE_IGNORE_MS = 350
 MIN_COMMAND_AUDIO_MS = 450
 MIN_SILENCE_AFTER_SPEECH_MS = 500
@@ -27,7 +31,7 @@ from app.services.wakeword_service import (
     wake_predict_prob,
 )
 from app.services.note_service import create_note
-from app.services.reminder_service import create_reminder
+from app.services.reminder_service import create_reminder, list_reminders
 from app.services.asr_service import asr_service
 from app.services.task_service import create_task, list_tasks, delete_task_by_index
 from app.services.alarm_service import create_alarm, list_alarms, delete_alarm_by_index
@@ -63,6 +67,7 @@ from app.services.assistant_response_builder import (
     build_alarm_deleted,
     build_history_list,
     build_history_cleared,
+    build_reminder_list,
 )
 
 from app.services.assistant_router import (
@@ -140,6 +145,29 @@ def maybe_make_partial(state_obj, sample_rate):
         "text": text,
     }
 
+def attach_token_usage(state_obj, response: dict, intent_name: str | None = None, custom_cost: int | None = None):
+    if not isinstance(response, dict):
+        return response
+
+    user_id = state_obj.context.get("user_id")
+    if not user_id:
+        return response
+
+    db = SessionLocal()
+    try:
+        usage = charge_user_tokens(
+            db=db,
+            user_id=user_id,
+            intent_name=intent_name or response.get("intent"),
+            custom_cost=custom_cost,
+        )
+        if usage:
+            response["token_usage"] = usage
+    finally:
+        db.close()
+
+    return response
+
 def log_history_from_response(state_obj, response: dict):
     if not isinstance(response, dict):
         return response
@@ -172,6 +200,7 @@ def finalize_utterance(state_obj, transcript: str):
         transcript = str(transcript)
 
     transcript = (transcript or "").strip()
+    print(f"[FINAL TRANSCRIPT] {transcript}", flush=True)
     assistant_state = state_obj.context.setdefault("assistant_state", {})
     context_type = assistant_state.get("context_type")
     last_action = assistant_state.get("last_action")
@@ -196,13 +225,27 @@ def finalize_utterance(state_obj, transcript: str):
                     build_note_mode_stopped("", saved_note=None)
                 )
 
-            saved_note = create_note(state_obj.session_id, full_note)
-            print("[NOTE MODE] stopped:", full_note, flush=True)
-            print(f"[NOTE SAVED] {saved_note['id']} | {saved_note['text']}", flush=True)
-            return log_history_from_response(
-                state_obj,
-                build_note_mode_stopped(full_note, saved_note=saved_note)
+            saved_note = create_note(
+                state_obj.session_id,
+                full_note,
+                user_id=state_obj.context.get("user_id"),
             )
+
+            print("[NOTE MODE] stopped:", full_note, flush=True)
+            print(
+                f"[NOTE SAVED] user_id={state_obj.context.get('user_id')} | {saved_note['id']} | {saved_note['text']}",
+                flush=True,
+            )
+
+            response = build_note_mode_stopped(full_note, saved_note=saved_note)
+            response = attach_token_usage(
+                state_obj,
+                response,
+                intent_name="note_mode_stopped",
+                custom_cost=3,
+            )
+
+            return log_history_from_response(state_obj, response)
 
         append_note_text(state_obj, transcript)
         live_text = " ".join(state_obj.context.get("note_buffer", []))
@@ -220,7 +263,10 @@ def finalize_utterance(state_obj, transcript: str):
     
     looks_like_supported_command = (
         text_l.startswith("open ")
-        or text_l.startswith("search ")
+        or (
+            text_l.startswith("search ")
+            and not text_l.startswith("search youtube ")
+        )
         or text_l.startswith("search for ")
         or "what time is it" in text_l
         or "tell me the time" in text_l
@@ -243,9 +289,22 @@ def finalize_utterance(state_obj, transcript: str):
         or "task" in text_l
         or "alarm" in text_l
         or "history" in text_l
+        or "remind" in text_l
+        or "reminder" in text_l
+        or "reminders" in text_l
     )
 
     reminder_intent = detect_reminder_intent(transcript)
+
+    if reminder_intent == "list_reminders":
+        assistant_state["last_action"] = "reminder"
+        assistant_state["context_type"] = "reminder"
+
+        reminders = list_reminders(session_id=state_obj.session_id)
+        return log_history_from_response(
+            state_obj,
+            build_reminder_list(reminders, transcript)
+        )
 
     if reminder_intent == "create_reminder":
         task, time_text = parse_reminder(transcript)
@@ -268,9 +327,11 @@ def finalize_utterance(state_obj, transcript: str):
                 )
             )
         
-        reminder = create_reminder(state_obj.session_id, task, time_text)
+        reminder = create_reminder( state_obj.session_id, task, time_text, user_id=state_obj.context.get("user_id"), )
 
-        return log_history_from_response(state_obj, build_reminder_created(reminder))
+        response = build_reminder_created(reminder)
+        response = attach_token_usage(state_obj, response, intent_name="create_reminder")
+        return log_history_from_response(state_obj, response)
     
     task_alarm_intent = detect_task_alarm_intent(transcript)
 
@@ -295,8 +356,10 @@ def finalize_utterance(state_obj, transcript: str):
                 )
             )
 
-        task = create_task(state_obj.session_id, task_text)
-        return log_history_from_response(state_obj, build_task_created(task))
+        task = create_task( state_obj.session_id, task_text, user_id=state_obj.context.get("user_id"), )
+        response = build_task_created(task)
+        response = attach_token_usage(state_obj, response, intent_name="create_task")
+        return log_history_from_response(state_obj, response)
 
     if task_alarm_intent == "list_tasks":
         tasks = list_tasks(state_obj.session_id)
@@ -328,8 +391,10 @@ def finalize_utterance(state_obj, transcript: str):
                 )
             )
 
-        alarm = create_alarm(state_obj.session_id, time_text)
-        return log_history_from_response(state_obj, build_alarm_created(alarm))
+        alarm = create_alarm( state_obj.session_id, time_text, user_id=state_obj.context.get("user_id"), )
+        response = build_alarm_created(alarm)
+        response = attach_token_usage(state_obj, response, intent_name="create_alarm")
+        return log_history_from_response(state_obj, response)
 
     if task_alarm_intent == "list_alarms":
         alarms = list_alarms(state_obj.session_id)
@@ -339,6 +404,80 @@ def finalize_utterance(state_obj, transcript: str):
         index = parse_delete_index(transcript, ["delete alarm", "remove alarm"])
         deleted = delete_alarm_by_index(state_obj.session_id, index or 0)
         return log_history_from_response(state_obj, build_alarm_deleted(deleted, index or 0))
+    
+    if context_type == "media":
+        media_control_intent, media_control_slots = detect_media_control_intent(transcript)
+
+        if media_control_intent:
+            action, ui, message = build_action_and_message(
+                media_control_intent,
+                transcript,
+                media_control_slots,
+            )
+
+            response = build_success_response(
+                transcript=transcript,
+                intent_name=media_control_intent,
+                confidence=0.95,
+                message=message,
+                action=action,
+                ui=ui,
+                session_mode="sleep",
+            )
+
+            response = attach_token_usage(
+                state_obj,
+                response,
+                intent_name=media_control_intent,
+            )
+
+            return log_history_from_response(state_obj, response)
+        
+
+    if context_type == "search":
+        search_control_intent, search_control_slots = detect_search_control_intent(transcript)
+
+        if search_control_intent:
+            action, ui, message = build_action_and_message(
+                search_control_intent,
+                transcript,
+                search_control_slots,
+            )
+
+            response = build_success_response(
+                transcript=transcript,
+                intent_name=search_control_intent,
+                confidence=0.95,
+                message=message,
+                action=action,
+                ui=ui,
+                session_mode="sleep",
+            )
+
+            response = attach_token_usage(
+                state_obj,
+                response,
+                intent_name=search_control_intent,
+            )
+
+            return log_history_from_response(state_obj, response)
+
+    if context_type == "search" and "result" in text_l:
+        return log_history_from_response(
+            state_obj,
+            build_clarification_response(
+                transcript=transcript,
+                intent_name="search_control",
+                confidence=0.4,
+                message="Say like: open first result, next result, or previous result.",
+                suggestions=[
+                    "Open first result",
+                    "Next result",
+                    "Previous result",
+                ],
+                session_mode=state_obj.mode,
+            )
+        )
     
     media_intent, media_slots = detect_media_intent(transcript)
 
@@ -351,18 +490,23 @@ def finalize_utterance(state_obj, transcript: str):
             media_slots,
         )
 
-        return log_history_from_response(
-            state_obj,
-            build_success_response(
-                transcript=transcript,
-                intent_name=media_intent,
-                confidence=0.95,
-                message=message,
-                action=action,
-                ui=ui,
-                session_mode="sleep",
-            )
+        response = build_success_response(
+            transcript=transcript,
+            intent_name=media_intent,
+            confidence=0.95,
+            message=message,
+            action=action,
+            ui=ui,
+            session_mode="sleep",
         )
+
+        response = attach_token_usage(
+            state_obj,
+            response,
+            intent_name=media_intent,
+        )
+
+        return log_history_from_response(state_obj, response)
     
     history_intent = detect_history_intent(transcript)
 
@@ -376,68 +520,6 @@ def finalize_utterance(state_obj, transcript: str):
         clear_history(state_obj.session_id)
         return log_history_from_response(state_obj, build_history_cleared())
     
-    if context_type == "media":
-        media_control_intent, media_control_slots = detect_media_control_intent(transcript)
-
-        if media_control_intent:
-            action, ui, message = build_action_and_message(
-                media_control_intent,
-                transcript,
-                media_control_slots,
-            )
-
-            return log_history_from_response(
-                state_obj,
-                build_success_response(
-                    transcript=transcript,
-                    intent_name=media_control_intent,
-                    confidence=0.95,
-                    message=message,
-                    action=action,
-                    ui=ui,
-                    session_mode="sleep",
-                )
-            )
-
-    if context_type == "search":
-        search_control_intent, search_control_slots = detect_search_control_intent(transcript)
-
-        if search_control_intent:
-            action, ui, message = build_action_and_message(
-                search_control_intent,
-                transcript,
-                search_control_slots,
-            )
-
-            return log_history_from_response(
-                state_obj,
-                build_success_response(
-                    transcript=transcript,
-                    intent_name=search_control_intent,
-                    confidence=0.95,
-                    message=message,
-                    action=action,
-                    ui=ui,
-                    session_mode="sleep",
-                )
-            )
-        
-        if "result" in text_l or "open" in text_l:
-            return log_history_from_response(
-                state_obj,
-                build_clarification_response(
-                    transcript=transcript,
-                    intent_name="search_control",
-                    confidence=0.4,
-                    message="Say like: open first result, next result, or previous result.",
-                    suggestions=[
-                        "Open first result",
-                        "Next result",
-                        "Previous result"
-                    ],
-                    session_mode=state_obj.mode,
-                )
-        )
 
     if not looks_like_supported_command and len(transcript.split()) < 6:
         if len(transcript.split()) < 2:
@@ -469,6 +551,36 @@ def finalize_utterance(state_obj, transcript: str):
             )
         )
 
+    quick_search_control_intent, quick_search_control_slots = detect_search_control_intent(transcript)
+
+    if quick_search_control_intent and (
+        "result" in text_l
+        or context_type == "search"
+    ):
+        action, ui, message = build_action_and_message(
+            quick_search_control_intent,
+            transcript,
+            quick_search_control_slots,
+        )
+
+        response = build_success_response(
+            transcript=transcript,
+            intent_name=quick_search_control_intent,
+            confidence=0.95,
+            message=message,
+            action=action,
+            ui=ui,
+            session_mode="sleep",
+        )
+
+        response = attach_token_usage(
+            state_obj,
+            response,
+            intent_name=quick_search_control_intent,
+        )
+
+        return log_history_from_response(state_obj, response)
+    
     intent_name, confidence, slots = detect_builtin_command_intent(transcript)
 
     if not intent_name:
@@ -625,17 +737,23 @@ def finalize_utterance(state_obj, transcript: str):
     else:
         assistant_state["last_action"] = intent_name
 
-    return log_history_from_response(
-        state_obj,build_success_response(
-            transcript=transcript,
-            intent_name=intent_name,
-            confidence=confidence,
-            message=message,
-            action=action,
-            ui=ui,
-            session_mode="sleep",
-        )
+    response = build_success_response(
+        transcript=transcript,
+        intent_name=intent_name,
+        confidence=confidence,
+        message=message,
+        action=action,
+        ui=ui,
+        session_mode="sleep",
     )
+
+    response = attach_token_usage(
+        state_obj,
+        response,
+        intent_name=intent_name,
+    )
+
+    return log_history_from_response(state_obj, response)
 
 def transcribe_current_audio_frames(state_obj, sample_rate):
     if not state_obj.audio_frames:
@@ -668,8 +786,9 @@ def transcribe_current_audio_frames(state_obj, sample_rate):
 
     return text
 
-def flush_session(session_id: str, sample_rate: int, model_key: str = None):
+def flush_session(session_id: str, sample_rate: int, model_key: str = None, user_id=None):
     state_obj = get_session(session_id)
+    state_obj.context["user_id"] = user_id
 
     result = {"type": "empty"}
     if state_obj.audio_frames:
@@ -740,8 +859,10 @@ def process_audio_chunk(
     sample_rate: int,
     model_key: str = None,
     wake_mode: bool = False,
+    user_id=None,
 ):
     state_obj = get_session(session_id)
+    state_obj.context["user_id"] = user_id
 
     i16 = bytes_to_i16(raw_bytes)
     if i16.size == 0:
