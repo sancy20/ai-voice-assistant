@@ -263,7 +263,7 @@ export default function Landing() {
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
         }}>
-        <div className={`flex items-center h-[60px] gap-6 ${WRAP}`}>
+        <div className={`flex items-center justify-between h-[60px] gap-4 ${WRAP}`}>
 
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 shrink-0">
@@ -283,7 +283,7 @@ export default function Landing() {
           </nav>
 
           {/* Right */}
-          <div className="flex items-center gap-1.5 shrink-0 ml-auto md:ml-0">
+          <div className="ml-auto flex items-center justify-end gap-1.5 shrink-0">
             <button onClick={toggle}
               className="h-9 w-9 grid place-items-center rounded-xl transition-colors hover:bg-black/5"
               style={{ color: navLink }}>
@@ -295,7 +295,7 @@ export default function Landing() {
               style={{ background:"linear-gradient(135deg,#8b5cf6,#6366f1)", boxShadow:"0 4px 14px rgba(139,92,246,0.35)" }}>
               Get started <ArrowRight className="h-3.5 w-3.5" />
             </Link>
-            <button className="md:hidden h-9 w-9 grid place-items-center rounded-xl" style={{ color: navLink }}
+            <button className="md:hidden h-9 w-9 grid place-items-center rounded-xl" style={{ color: navLink }} 
               onClick={() => setMobileOpen(o => !o)}>
               {mobileOpen ? <XIcon className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -340,7 +340,7 @@ export default function Landing() {
             <motion.div initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
               transition={{ duration:0.4 }}
               className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 mb-4 sm:mb-5 text-xs font-semibold"
-              style={{ border:`1px solid rgba(139,92,246,0.3)`, background:"rgba(139,92,246,0.08)", color:"#a78bfa" }}>
+              style={{ border:`1px solid rgba(139,92,246,0.3)`, background:"rgba(139,92,246,0.08)", color:"#a78bfa", marginBottom: "10px"}}>
               <Zap className="h-3 w-3 shrink-0" /> AI-powered voice assistant
             </motion.div>
 

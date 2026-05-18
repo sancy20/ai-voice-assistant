@@ -23,7 +23,7 @@ export default function ForgotPassword() {
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+      const res = await fetch(`${API_URL}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -52,7 +52,7 @@ export default function ForgotPassword() {
         className="w-full max-w-sm">
 
         {/* Logo */}
-        <div className="flex items-center gap-2 mb-8">
+        <div className="flex items-center gap-2 mb-8" style={{marginBottom: "5px"}}>
           <div className="h-6 w-6 rounded-md grid place-items-center shrink-0"
             style={{ background: "var(--accent)", marginBottom: "10px"}}>
             {MIC_SVG}
@@ -104,7 +104,7 @@ export default function ForgotPassword() {
             <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.25 }} className="space-y-4">
               <div className="rounded-xl border p-4"
-                style={{ background: "rgba(16,185,129,0.06)", borderColor: "rgba(16,185,129,0.2)" }}>
+                style={{ background: "rgba(16,185,129,0.06)", borderColor: "rgba(16,185,129,0.2)", marginBottom: "16px" }}>
                 <p className="text-xs font-semibold mb-1" style={{ color: "#34d399" }}>Reset link generated</p>
                 <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
                   In production this would be emailed. For now, copy the link below.
@@ -112,7 +112,7 @@ export default function ForgotPassword() {
               </div>
 
               <div className="rounded-xl border px-3 py-2.5 flex items-center gap-2"
-                style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                style={{ background: "var(--surface)", borderColor: "var(--border)", marginBottom: "16px"}}>
                 <code className="flex-1 text-[11px] truncate" style={{ color: "var(--fg-3)" }}>
                   /reset-password?token={token.slice(0, 12)}…
                 </code>

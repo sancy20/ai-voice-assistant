@@ -263,7 +263,10 @@ def finalize_utterance(state_obj, transcript: str):
     
     looks_like_supported_command = (
         text_l.startswith("open ")
-        or text_l.startswith("search ")
+        or (
+            text_l.startswith("search ")
+            and not text_l.startswith("search youtube ")
+        )
         or text_l.startswith("search for ")
         or "what time is it" in text_l
         or "tell me the time" in text_l
@@ -324,7 +327,7 @@ def finalize_utterance(state_obj, transcript: str):
                 )
             )
         
-        reminder = create_reminder(state_obj.session_id, task, time_text)
+        reminder = create_reminder( state_obj.session_id, task, time_text, user_id=state_obj.context.get("user_id"), )
 
         response = build_reminder_created(reminder)
         response = attach_token_usage(state_obj, response, intent_name="create_reminder")
@@ -353,7 +356,7 @@ def finalize_utterance(state_obj, transcript: str):
                 )
             )
 
-        task = create_task(state_obj.session_id, task_text)
+        task = create_task( state_obj.session_id, task_text, user_id=state_obj.context.get("user_id"), )
         response = build_task_created(task)
         response = attach_token_usage(state_obj, response, intent_name="create_task")
         return log_history_from_response(state_obj, response)
@@ -388,7 +391,7 @@ def finalize_utterance(state_obj, transcript: str):
                 )
             )
 
-        alarm = create_alarm(state_obj.session_id, time_text)
+        alarm = create_alarm( state_obj.session_id, time_text, user_id=state_obj.context.get("user_id"), )
         response = build_alarm_created(alarm)
         response = attach_token_usage(state_obj, response, intent_name="create_alarm")
         return log_history_from_response(state_obj, response)
@@ -459,7 +462,7 @@ def finalize_utterance(state_obj, transcript: str):
 
             return log_history_from_response(state_obj, response)
 
-    if "result" in text_l or "open" in text_l:
+    if context_type == "search" and "result" in text_l:
         return log_history_from_response(
             state_obj,
             build_clarification_response(

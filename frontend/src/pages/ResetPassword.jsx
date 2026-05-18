@@ -43,7 +43,7 @@ export default function ResetPassword() {
     if (pw_strength < 2)      { setError("Password is too weak");   return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+      const res = await fetch(`${API_URL}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, new_password: password }),
@@ -66,7 +66,7 @@ export default function ResetPassword() {
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-sm">
 
-        <div className="flex items-center gap-2 mb-8">
+        <div className="flex items-center gap-2 mb-8" style={{marginBottom: "10px"}}>
           <div className="h-6 w-6 rounded-md grid place-items-center shrink-0"
             style={{ background: "var(--accent)" }}>
             {MIC_SVG}
@@ -75,7 +75,7 @@ export default function ResetPassword() {
         </div>
 
         <div className="rounded-2xl border p-6"
-          style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}>
+          style={{ background: "var(--bg-subtle)", borderColor: "var(--border)"}}>
 
           {done ? (
             <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
@@ -104,7 +104,7 @@ export default function ResetPassword() {
               <form onSubmit={submit} className="space-y-4">
                 {/* Password */}
                 <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--fg-3)" }}>New password</label>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--fg-3)", marginTop: "16px"}}>New password</label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
                       style={{ color: "var(--fg-4)" }} />
@@ -137,7 +137,7 @@ export default function ResetPassword() {
 
                 {/* Confirm */}
                 <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--fg-3)" }}>Confirm password</label>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--fg-3)", marginTop: "16px"}}>Confirm password</label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
                       style={{ color: "var(--fg-4)" }} />
@@ -162,7 +162,7 @@ export default function ResetPassword() {
 
                 <button type="submit" disabled={loading || !token}
                   className="w-full rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
-                  style={{ background: "var(--accent)" }}>
+                  style={{ background: "var(--accent)", marginTop: "16px"}}>
                   {loading ? "Updating…" : "Update password"}
                 </button>
               </form>
@@ -172,7 +172,7 @@ export default function ResetPassword() {
 
         <Link to="/login"
           className="mt-5 flex items-center gap-1.5 text-xs transition-colors"
-          style={{ color: "var(--fg-4)" }}>
+          style={{ color: "var(--fg-4)" , marginTop: "15px"}}>
           <ArrowLeft className="h-3.5 w-3.5" /> Back to sign in
         </Link>
       </motion.div>

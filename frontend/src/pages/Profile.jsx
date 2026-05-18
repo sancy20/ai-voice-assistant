@@ -203,251 +203,253 @@ export default function Profile() {
   };
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 2xl:px-12 py-5 sm:py-8 max-w-5xl mx-auto">
+    <div className="w-full min-h-full px-4 sm:px-6 lg:px-8 py-5 sm:py-8 flex justify-center">
+      <div className="w-full max-w-[960px]">
 
-      <AnimatePresence>{toast && <Toast {...toast} />}</AnimatePresence>
+        <AnimatePresence>{toast && <Toast {...toast} />}</AnimatePresence>
 
-      {/* Account card */}
-      <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border p-6 mb-7 flex flex-col sm:flex-row sm:items-center gap-5"
-        style={{ background: "var(--surface)", borderColor: "var(--border)", marginBottom: "10px" }}>
+        {/* Account card */}
+        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border p-6 mb-7 flex flex-col sm:flex-row sm:items-center gap-5"
+          style={{ background: "var(--surface)", borderColor: "var(--border)", marginBottom: "10px" }}>
 
-        {/* Avatar */}
-        <div className="relative shrink-0 self-start sm:self-center">
-          {user?.avatar_url
-            ? <img src={user.avatar_url} alt="avatar"
-                className="h-16 w-16 rounded-2xl object-cover"
-                style={{ border: "2px solid var(--border)" }} />
-            : <div className="h-16 w-16 rounded-2xl grid place-items-center font-bold text-2xl text-white"
-                style={{ background: avatarBg }}>
-                {user?.username?.[0]?.toUpperCase()}
-              </div>}
-          <button onClick={() => fileRef.current?.click()} disabled={uploadingAv}
-            className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full border grid place-items-center transition-colors hover:bg-[var(--surface-h)]"
-            style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
-            {uploadingAv
-              ? <Loader2 className="h-3 w-3 animate-spin" style={{ color: "var(--fg-4)" }} />
-              : <Camera className="h-3 w-3" style={{ color: "var(--fg-3)" }} />}
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
-        </div>
+          {/* Avatar */}
+          <div className="relative shrink-0 self-start sm:self-center">
+            {user?.avatar_url
+              ? <img src={user.avatar_url} alt="avatar"
+                  className="h-16 w-16 rounded-2xl object-cover"
+                  style={{ border: "2px solid var(--border)" }} />
+              : <div className="h-16 w-16 rounded-2xl grid place-items-center font-bold text-2xl text-white"
+                  style={{ background: avatarBg }}>
+                  {user?.username?.[0]?.toUpperCase()}
+                </div>}
+            <button onClick={() => fileRef.current?.click()} disabled={uploadingAv}
+              className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full border grid place-items-center transition-colors hover:bg-[var(--surface-h)]"
+              style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+              {uploadingAv
+                ? <Loader2 className="h-3 w-3 animate-spin" style={{ color: "var(--fg-4)" }} />
+                : <Camera className="h-3 w-3" style={{ color: "var(--fg-3)" }} />}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
+          </div>
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <p className="text-base font-semibold" style={{ color: "var(--fg)" }}>{user?.username}</p>
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize"
-              style={{ background: `${planColor}22`, color: planColor }}>
-              {plan}
-            </span>
-            {user?.is_admin && (
-              <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ background: "var(--accent-2)", color: "var(--accent-fg)" }}>
-                <Shield className="h-2.5 w-2.5" /> Admin
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <p className="text-base font-semibold" style={{ color: "var(--fg)" }}>{user?.username}</p>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize"
+                style={{ background: `${planColor}22`, color: planColor }}>
+                {plan}
               </span>
+              {user?.is_admin && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{ background: "var(--accent-2)", color: "var(--accent-fg)" }}>
+                  <Shield className="h-2.5 w-2.5" /> Admin
+                </span>
+              )}
+            </div>
+            <p className="text-sm mb-3" style={{ color: "var(--fg-4)" }}>{user?.email}</p>
+
+            {/* Token bar */}
+            {isUnlimited ? (
+              <div className="flex items-center gap-2">
+                <Zap className="h-3.5 w-3.5" style={{ color: "#a78bfa" }} />
+                <span className="text-sm font-semibold" style={{ color: "#a78bfa" }}>Unlimited tokens</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                  <motion.div className="h-full rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(100, usedPct)}%` }}
+                    transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
+                    style={{ background: tokenColor }} />
+                </div>
+                <span className="text-xs shrink-0 tabular-nums" style={{ color: "var(--fg-4)" }}>
+                  <span style={{ color: "var(--fg-2)", fontWeight: 600 }}>{credits}</span>
+                  <span>/{limit} tokens</span>
+                </span>
+              </div>
             )}
           </div>
-          <p className="text-sm mb-3" style={{ color: "var(--fg-4)" }}>{user?.email}</p>
+        </motion.div>
 
-          {/* Token bar */}
-          {isUnlimited ? (
-            <div className="flex items-center gap-2">
-              <Zap className="h-3.5 w-3.5" style={{ color: "#a78bfa" }} />
-              <span className="text-sm font-semibold" style={{ color: "#a78bfa" }}>Unlimited tokens</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                <motion.div className="h-full rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(100, usedPct)}%` }}
-                  transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
-                  style={{ background: tokenColor }} />
-              </div>
-              <span className="text-xs shrink-0 tabular-nums" style={{ color: "var(--fg-4)" }}>
-                <span style={{ color: "var(--fg-2)", fontWeight: 600 }}>{credits}</span>
-                <span>/{limit} tokens</span>
-              </span>
-            </div>
-          )}
-        </div>
-      </motion.div>
+        {/* 2-col grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 items-start">
 
-      {/* 2-col grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 items-start">
+          {/* ── Left column ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
 
-        {/* ── Left column ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {/* Profile */}
+            <Section title="Profile" desc="Your display name and email address." delay={0.04} >
+              <form onSubmit={saveProfile} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <InputField label="Username" icon={User}
+                  value={username} onChange={e => setUsername(e.target.value)} placeholder="yourname" />
+                <InputField label="Email" icon={Mail} type="email"
+                  value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
+                <button type="submit" disabled={saving}
+                  className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
+                  style={{ background: "var(--accent-grad)", boxShadow: "0 4px 16px rgba(139,92,246,0.3)", marginTop: "20px" }}>
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                  Save changes
+                </button>
+              </form>
+            </Section>
 
-          {/* Profile */}
-          <Section title="Profile" desc="Your display name and email address." delay={0.04} >
-            <form onSubmit={saveProfile} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <InputField label="Username" icon={User}
-                value={username} onChange={e => setUsername(e.target.value)} placeholder="yourname" />
-              <InputField label="Email" icon={Mail} type="email"
-                value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
-              <button type="submit" disabled={saving}
-                className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
-                style={{ background: "var(--accent-grad)", boxShadow: "0 4px 16px rgba(139,92,246,0.3)", marginTop: "20px" }}>
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Save changes
-              </button>
-            </form>
-          </Section>
-
-          {/* Appearance */}
-          <Section title="Appearance" desc="Customize how VoiceAI looks." delay={0.1}>
-            <ToggleRow
-              first
-              icon={theme === "dark" ? Sun : Moon}
-              label={theme === "dark" ? "Light mode" : "Dark mode"}
-              desc="Switch the interface color scheme"
-              value={theme === "light"}
-              onChange={() => toggleTheme()}
-              iconColor={theme === "dark" ? "#f59e0b" : "#818cf8"}
-            />
-          </Section>
-
-          {/* Notifications */}
-          <Section title="Notifications" desc="Control alerts and audio feedback." delay={0.16}>
-            <ToggleRow
-              first
-              icon={notifSound ? Volume2 : VolumeX}
-              label="Sound effects"
-              desc="Audio cues on assistant events"
-              value={notifSound}
-              onChange={handleSound}
-              iconColor="var(--accent-fg)"
-            />
-            <ToggleRow
-              icon={notifBanner ? Bell : BellOff}
-              label="In-app banners"
-              desc="Toast notifications for actions"
-              value={notifBanner}
-              onChange={handleBanner}
-              iconColor="var(--accent-fg)"
-            />
-          </Section>
-
-        </div>
-
-        {/* ── Right column ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-
-          {/* Security */}
-          <Section title="Security" desc="Update your account password." delay={0.07}>
-            <form onSubmit={changePassword} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <InputField label="Current password" icon={Lock}
-                type={showOld ? "text" : "password"}
-                value={oldPw} onChange={e => setOldPw(e.target.value)}
-                placeholder="••••••••"
-                right={
-                  <button type="button" onClick={() => setShowOld(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--fg-4)"}}>
-                    {showOld ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                }
+            {/* Appearance */}
+            <Section title="Appearance" desc="Customize how VoiceAI looks." delay={0.1}>
+              <ToggleRow
+                first
+                icon={theme === "dark" ? Sun : Moon}
+                label={theme === "dark" ? "Light mode" : "Dark mode"}
+                desc="Switch the interface color scheme"
+                value={theme === "light"}
+                onChange={() => toggleTheme()}
+                iconColor={theme === "dark" ? "#f59e0b" : "#818cf8"}
               />
-              <div>
-                <InputField label="New password" icon={Lock}
-                  type={showNew ? "text" : "password"}
-                  value={newPw} onChange={e => setNewPw(e.target.value)}
-                  placeholder="Min. 8 characters"
+            </Section>
+
+            {/* Notifications */}
+            <Section title="Notifications" desc="Control alerts and audio feedback." delay={0.16}>
+              <ToggleRow
+                first
+                icon={notifSound ? Volume2 : VolumeX}
+                label="Sound effects"
+                desc="Audio cues on assistant events"
+                value={notifSound}
+                onChange={handleSound}
+                iconColor="var(--accent-fg)"
+              />
+              <ToggleRow
+                icon={notifBanner ? Bell : BellOff}
+                label="In-app banners"
+                desc="Toast notifications for actions"
+                value={notifBanner}
+                onChange={handleBanner}
+                iconColor="var(--accent-fg)"
+              />
+            </Section>
+
+          </div>
+
+          {/* ── Right column ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+
+            {/* Security */}
+            <Section title="Security" desc="Update your account password." delay={0.07}>
+              <form onSubmit={changePassword} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <InputField label="Current password" icon={Lock}
+                  type={showOld ? "text" : "password"}
+                  value={oldPw} onChange={e => setOldPw(e.target.value)}
+                  placeholder="••••••••"
                   right={
-                    <button type="button" onClick={() => setShowNew(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--fg-4)" }}>
-                      {showNew ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    <button type="button" onClick={() => setShowOld(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--fg-4)"}}>
+                      {showOld ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     </button>
                   }
                 />
-                <AnimatePresence>
-                  {newPw.length > 0 && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                      <div className="flex items-center gap-1.5 mt-2">
-                        {[1,2,3].map(i => (
-                          <motion.div key={i} className="h-0.5 flex-1 rounded-full"
-                            animate={{ backgroundColor: i <= pw ? strengthColor[pw] : "rgba(255,255,255,0.07)" }}
-                            transition={{ duration: 0.2 }} />
-                        ))}
-                        <span className="text-[11px] w-9 text-right" style={{ color: strengthColor[pw] }}>
-                          {strengthLabel[pw]}
-                        </span>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <div>
+                  <InputField label="New password" icon={Lock}
+                    type={showNew ? "text" : "password"}
+                    value={newPw} onChange={e => setNewPw(e.target.value)}
+                    placeholder="Min. 8 characters"
+                    right={
+                      <button type="button" onClick={() => setShowNew(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--fg-4)" }}>
+                        {showNew ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    }
+                  />
+                  <AnimatePresence>
+                    {newPw.length > 0 && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                        <div className="flex items-center gap-1.5 mt-2">
+                          {[1,2,3].map(i => (
+                            <motion.div key={i} className="h-0.5 flex-1 rounded-full"
+                              animate={{ backgroundColor: i <= pw ? strengthColor[pw] : "rgba(255,255,255,0.07)" }}
+                              transition={{ duration: 0.2 }} />
+                          ))}
+                          <span className="text-[11px] w-9 text-right" style={{ color: strengthColor[pw] }}>
+                            {strengthLabel[pw]}
+                          </span>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                <button type="submit" disabled={changingPw || !oldPw || !newPw}
+                  className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-40"
+                  style={{ background: "var(--accent-grad)", boxShadow: "0 4px 16px rgba(139,92,246,0.3)", marginTop: "20px"}}>
+                  {changingPw ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
+                  Change password
+                </button>
+              </form>
+            </Section>
+
+            {/* Plan & Usage */}
+            <Section title="Plan & Usage" desc="Your current subscription and token usage." delay={0.13}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                {/* Plan badge row */}
+                <div className="flex items-center justify-between rounded-xl px-4 py-3"
+                  style={{ background: `${planColor}12`, border: `1px solid ${planColor}28` }}>
+                  <div className="flex items-center gap-2.5">
+                    <Zap className="h-4 w-4" style={{ color: planColor }} />
+                    <div>
+                      <p className="text-sm font-semibold capitalize" style={{ color: "var(--fg)" }}>
+                        {plan === "unlimited" ? "Unlimited" : `${plan.charAt(0).toUpperCase() + plan.slice(1)}`} Plan
+                      </p>
+                      <p className="text-[11px]" style={{ color: "var(--fg-4)" }}>
+                        {isUnlimited ? "No token limits" : `${credits} of ${limit} tokens remaining`}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: `${planColor}22`, color: planColor }}>
+                    {isUnlimited ? "∞" : `${usedPct}%`}
+                  </span>
+                </div>
+
+                {/* Progress bar — only for non-unlimited */}
+                {!isUnlimited && (
+                  <div className="space-y-1.5">
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                      <motion.div className="h-full rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(100, usedPct)}%` }}
+                        transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+                        style={{ background: tokenColor }} />
+                    </div>
+                    <div className="flex justify-between text-[11px]" style={{ color: "var(--fg-4)" }}>
+                      <span>{credits} remaining</span>
+                      <span>{usedPct}% used</span>
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={() => navigate("/subscription")}
+                  className="w-full flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-sm transition-colors hover:bg-[var(--surface-h)]"
+                  style={{ background: "var(--surface-h)", borderColor: "var(--border-s)", color: "var(--fg-2)" }}>
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-3.5 w-3.5" style={{ color: "var(--fg-4)" }} />
+                    Manage subscription
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--fg-4)" }} />
+                </button>
               </div>
-              <button type="submit" disabled={changingPw || !oldPw || !newPw}
-                className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-40"
-                style={{ background: "var(--accent-grad)", boxShadow: "0 4px 16px rgba(139,92,246,0.3)", marginTop: "20px"}}>
-                {changingPw ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
-                Change password
+            </Section>
+
+            {/* Sign out */}
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+              <button onClick={() => { logout(); navigate("/"); }}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-medium transition-colors hover:bg-[var(--rose-2)]"
+                style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--rose)" }}>
+                <LogOut className="h-4 w-4" /> Sign out
               </button>
-            </form>
-          </Section>
+            </motion.div>
 
-          {/* Plan & Usage */}
-          <Section title="Plan & Usage" desc="Your current subscription and token usage." delay={0.13}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              {/* Plan badge row */}
-              <div className="flex items-center justify-between rounded-xl px-4 py-3"
-                style={{ background: `${planColor}12`, border: `1px solid ${planColor}28` }}>
-                <div className="flex items-center gap-2.5">
-                  <Zap className="h-4 w-4" style={{ color: planColor }} />
-                  <div>
-                    <p className="text-sm font-semibold capitalize" style={{ color: "var(--fg)" }}>
-                      {plan === "unlimited" ? "Unlimited" : `${plan.charAt(0).toUpperCase() + plan.slice(1)}`} Plan
-                    </p>
-                    <p className="text-[11px]" style={{ color: "var(--fg-4)" }}>
-                      {isUnlimited ? "No token limits" : `${credits} of ${limit} tokens remaining`}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: `${planColor}22`, color: planColor }}>
-                  {isUnlimited ? "∞" : `${usedPct}%`}
-                </span>
-              </div>
-
-              {/* Progress bar — only for non-unlimited */}
-              {!isUnlimited && (
-                <div className="space-y-1.5">
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                    <motion.div className="h-full rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(100, usedPct)}%` }}
-                      transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-                      style={{ background: tokenColor }} />
-                  </div>
-                  <div className="flex justify-between text-[11px]" style={{ color: "var(--fg-4)" }}>
-                    <span>{credits} remaining</span>
-                    <span>{usedPct}% used</span>
-                  </div>
-                </div>
-              )}
-
-              <button onClick={() => navigate("/subscription")}
-                className="w-full flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-sm transition-colors hover:bg-[var(--surface-h)]"
-                style={{ background: "var(--surface-h)", borderColor: "var(--border-s)", color: "var(--fg-2)" }}>
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-3.5 w-3.5" style={{ color: "var(--fg-4)" }} />
-                  Manage subscription
-                </div>
-                <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--fg-4)" }} />
-              </button>
-            </div>
-          </Section>
-
-          {/* Sign out */}
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <button onClick={() => { logout(); navigate("/"); }}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-medium transition-colors hover:bg-[var(--rose-2)]"
-              style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--rose)" }}>
-              <LogOut className="h-4 w-4" /> Sign out
-            </button>
-          </motion.div>
-
+          </div>
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ import { useAssistant } from "../context/AssistantContext";
 import ActionScreen        from "./ActionScreen";
 import MediaOverlay        from "./MediaOverlay";
 import CenterSearchResults from "./CenterSearchResults";
+import { loadAssistantItems, isItemDue } from "./assistantItems";
 
 const NAV = [
   { to: "/assistant",  icon: Mic2,       label: "Assistant" },
@@ -38,7 +39,7 @@ const MIC_SVG = (
   </svg>
 );
 
-function NavItem({ to, icon: Icon, label, collapsed, onClick }) {
+function NavItem({ to, icon: Icon, label, collapsed, onClick, badgeCount = 0 }) {
   return (
     <NavLink to={to} end={to === "/"} onClick={onClick}
       className={({ isActive }) =>
@@ -56,18 +57,45 @@ function NavItem({ to, icon: Icon, label, collapsed, onClick }) {
               transition={{ type: "spring", stiffness: 400, damping: 34 }}
             />
           )}
-          <Icon className="relative h-4 w-4 shrink-0 transition-colors"
-            style={{ color: isActive ? "var(--accent-fg)" : "var(--fg-3)" }} />
-          <AnimatePresence>
-            {!collapsed && (
+          <div className="relative shrink-0">
+            <Icon
+              className="relative h-4 w-4 transition-colors"
+              style={{ color: isActive ? "var(--accent-fg)" : "var(--fg-3)" }}
+            />
+
+            {badgeCount > 0 && collapsed && (
               <span
-                className="relative whitespace-nowrap"
+                className="absolute -top-2 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold grid place-items-center"
                 style={{
-                  color: isActive ? "var(--fg)" : "var(--fg-3)",
-                  fontWeight: isActive ? 500 : 400,
+                  background: "var(--accent-fg)",
+                  color: "#fff",
                 }}
               >
-                {label}
+                {badgeCount > 9 ? "9+" : badgeCount}
+              </span>
+            )}
+          </div>
+
+          <AnimatePresence>
+            <span
+              className="relative whitespace-nowrap flex-1"
+              style={{
+                color: isActive ? "var(--fg)" : "var(--fg-3)",
+                fontWeight: isActive ? 500 : 400,
+              }}
+            >
+              {label}
+            </span>
+
+            {badgeCount > 0 && !collapsed && (
+              <span
+                className="relative ml-auto min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold grid place-items-center"
+                style={{
+                  background: "var(--accent-fg)",
+                  color: "#fff",
+                }}
+              >
+                {badgeCount > 9 ? "9+" : badgeCount}
               </span>
             )}
           </AnimatePresence>
@@ -85,6 +113,34 @@ export default function Layout({ children }) {
   const location  = useLocation();
   const [collapsed,  setCollapsed]  = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const [assistantItemCount, setAssistantItemCount] = useState(0);
+
+  useEffect(() => {
+    const refreshAssistantCount = () => {
+      const count = loadAssistantItems(user?.id || user?.email || "guest").filter((item) => {
+        return (
+          (item.type === "reminder" || item.type === "alarm") &&
+          isItemDue(item)
+        );
+      }).length;
+
+      setAssistantItemCount(count);
+    };
+
+    refreshAssistantCount();
+
+    const timer = setInterval(refreshAssistantCount, 5000);
+
+    window.addEventListener("storage", refreshAssistantCount);
+    window.addEventListener("voiceai-items-updated", refreshAssistantCount);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("storage", refreshAssistantCount);
+      window.removeEventListener("voiceai-items-updated", refreshAssistantCount);
+    };
+  }, []);
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
@@ -133,7 +189,7 @@ export default function Layout({ children }) {
 
         <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
           {user?.is_admin && <NavItem {...NAV_ADMIN} collapsed={collapsed} />}
-          {NAV.map(n => <NavItem key={n.to} {...n} collapsed={collapsed} />)}
+          {NAV.map(n => ( <NavItem key={n.to} {...n} collapsed={collapsed} badgeCount={n.to === "/assistant" ? assistantItemCount : 0} /> ))}
           <div className="my-2 border-t" style={{ borderColor: "var(--border-s)" }} />
           {NAV_BOTTOM.map(n => <NavItem key={n.to} {...n} collapsed={collapsed} />)}
           {user?.is_admin && (
@@ -247,16 +303,17 @@ export default function Layout({ children }) {
         {mobileOpen && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="lg:hidden fixed inset-0 z-[45]" style={{ background: "rgba(0,0,0,0.6)" }}
+              className="lg:hidden fixed inset-0 z-[55]" style={{ background: "rgba(0,0,0,0.6)" }}
               onClick={() => setMobileOpen(false)} />
             <motion.div
               initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}
               transition={{ type: "spring", stiffness: 340, damping: 34 }}
-              className="lg:hidden fixed left-0 bottom-0 z-[46] w-[min(256px,80vw)] flex flex-col border-r overflow-y-auto"
+              className="lg:hidden fixed left-0 bottom-0 z-[60] w-[min(256px,80vw)] flex flex-col border-r overflow-y-auto"
               style={{
                 top: "var(--topbar-h)",
                 background: "var(--bg-subtle)",
                 borderColor: "var(--border-s)",
+                paddingBottom: "calc(var(--bottomnav-h) + env(safe-area-inset-bottom, 0px) + 12px)",
               }}>
               {/* User info */}
               <div className="flex items-center gap-3 px-4 py-3.5 border-b" style={{ borderColor: "var(--border-s)" }}>
@@ -288,7 +345,7 @@ export default function Layout({ children }) {
                   ...NAV_BOTTOM,
                   ...(user?.is_admin ? [{ to: "/admin", icon: ShieldCheck, label: "Admin" }] : []),
                 ].map(n => (
-                  <NavItem key={n.to} {...n} collapsed={false} onClick={() => setMobileOpen(false)} />
+                  <NavItem key={n.to} {...n} collapsed={false} onClick={() => setMobileOpen(false)} badgeCount={n.to === "/assistant" ? assistantItemCount : 0} />
                 ))}
               </nav>
 
@@ -309,14 +366,14 @@ export default function Layout({ children }) {
           </>
         )}
       </AnimatePresence>
-      <main className={`flex-1 min-w-0 pt-[var(--topbar-h)] pb-[var(--bottomnav-h)] lg:pt-0 lg:pb-0 relative ${ location.pathname === "/assistant" ? "overflow-hidden" : "overflow-y-auto" }`} >
+      <main className={`flex-1 min-w-0 pt-[var(--topbar-h)] ${ location.pathname === "/assistant" ? "pb-[var(--bottomnav-h)]" : "pb-[calc(var(--bottomnav-h)+env(safe-area-inset-bottom,0px)+32px)]" } lg:pt-0 lg:pb-0 relative ${ location.pathname === "/assistant" ? "overflow-hidden" : "overflow-y-auto" }`} >
         <AnimatePresence mode="wait">
           <motion.div key={location.pathname}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="h-full">
+            className={location.pathname === "/assistant" ? "h-full" : "min-h-full"}>
             {children}
           </motion.div>
         </AnimatePresence>
@@ -342,8 +399,24 @@ export default function Layout({ children }) {
                     transition={{ type: "spring", stiffness: 400, damping: 34 }}
                   />
                 )}
-                <Icon className="h-5 w-5 transition-colors"
-                  style={{ color: isActive ? "var(--accent-fg)" : "var(--fg-4)" }} />
+                <div className="relative">
+                  <Icon
+                    className="h-5 w-5 transition-colors"
+                    style={{ color: isActive ? "var(--accent-fg)" : "var(--fg-4)" }}
+                  />
+
+                  {to === "/assistant" && assistantItemCount > 0 && (
+                    <span
+                      className="absolute -top-2 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold grid place-items-center"
+                      style={{
+                        background: "var(--accent-fg)",
+                        color: "#fff",
+                      }}
+                    >
+                      {assistantItemCount > 9 ? "9+" : assistantItemCount}
+                    </span>
+                  )}
+                </div>
                 <span className="transition-colors" style={{ color: isActive ? "var(--accent-fg)" : "var(--fg-4)" }}>
                   {label}
                 </span>

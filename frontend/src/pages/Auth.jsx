@@ -169,13 +169,6 @@ export default function Auth({ mode: initial = "login" }) {
               <motion.div {...field(0.06)}>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-medium" style={{ color: "var(--fg-3)" , marginTop: "15px"}}>Password</label>
-                  {isLogin && (
-                    <Link to="/forgot-password"
-                      className="text-[11px] transition-colors hover:text-white/70"
-                      style={{ color: "var(--fg-4)" }}>
-                      Forgot password?
-                    </Link>
-                  )}
                 </div>
                 <div className="relative">
                   <input
@@ -191,6 +184,17 @@ export default function Auth({ mode: initial = "login" }) {
                     {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
                 </div>
+                {isLogin && (
+                  <div className="flex justify-end mt-1.5">
+                    <Link
+                      to="/forgot-password"
+                      className="text-[11px] transition-colors hover:text-white/70"
+                      style={{ color: "var(--fg-4)" }}
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+                )}
                 <AnimatePresence>
                   {!isLogin && password.length > 0 && (
                     <motion.div

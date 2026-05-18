@@ -582,31 +582,64 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen t-bg t-fg">
-      <nav className="sticky top-0 z-40 flex items-center justify-between border-b t-border-sm t-bg-nav backdrop-blur px-6 py-3">
-        <div className="flex items-center gap-3">
-          <Link to="/"
-            className="flex items-center gap-1.5 rounded-xl border t-border t-bg-item px-3 py-1.5 text-xs t-fg-60 hover:t-fg-90 hover:t-bg-hover transition">
-            <ArrowLeft className="h-3.5 w-3.5" /> Home
-          </Link>
-          <div className="flex items-center gap-2">
-            <div className="grid h-7 w-7 place-items-center rounded-lg bg-white/5 ring-1 ring-white/10">
+      <nav className="sticky top-0 z-40 border-b t-border-sm t-bg-nav backdrop-blur px-4 sm:px-6 py-3">
+        {/* Top row */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Link to="/"
+              className="hidden sm:flex items-center gap-1.5 rounded-xl border t-border t-bg-item px-3 py-1.5 text-xs t-fg-60 hover:t-fg-90 hover:t-bg-hover transition shrink-0">
+              <ArrowLeft className="h-3.5 w-3.5" /> Home
+            </Link>
+            <Link to="/"
+              className="sm:hidden grid h-8 w-8 place-items-center rounded-xl border t-border t-bg-item t-fg-60 shrink-0">
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </Link>
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-white/5 ring-1 ring-white/10 shrink-0">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
             </div>
-            <span className="text-sm font-semibold">Admin Dashboard</span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold leading-tight truncate">Admin</p>
+              <p className="text-xs t-fg-40 leading-tight truncate">Dashboard</p>
+            </div>
+          </div>
+
+          {/* Desktop tabs */}
+          <div className="hidden md:flex items-center gap-1 rounded-xl border t-border t-bg-item p-1">
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition whitespace-nowrap ${
+                  tab === key
+                    ? "bg-white/10 text-white"
+                    : "text-white/40 hover:text-white/70"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-1 rounded-xl border t-border t-bg-item p-1">
-          {TABS.map(({ key, label, icon: Icon }) => (
-            <button key={key} onClick={() => setTab(key)}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                tab === key ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"
-              }`}>
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
+        {/* Mobile tabs */}
+        <div className="mt-3 md:hidden overflow-x-auto" style={{marginTop: "15px"}}>
+          <div className="flex w-max min-w-full items-center gap-1 rounded-xl border t-border t-bg-item p-1">
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition whitespace-nowrap ${
+                  tab === key
+                    ? "bg-white/10 text-white"
+                    : "text-white/40 hover:text-white/70"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </nav>
 

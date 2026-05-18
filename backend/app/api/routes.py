@@ -19,6 +19,8 @@ from app.services.intent_service import predict_intent_rule_based
 from app.services.model_service import WAKE_MODEL
 from app.services.assistant_router import normalize_intent_result, build_action_and_message
 from app.services.assistant_response_builder import build_success_response, build_clarification_response
+from app.services.audio_pipeline import finalize_utterance
+from app.services.state_manager import get_session
 
 router = APIRouter()
 
@@ -51,8 +53,7 @@ async def predict_intent_endpoint(request: Request):
 async def assistant_text_query(
     request: Request,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),):
-
+):
     try:
         payload = await request.json()
     except Exception:
@@ -61,18 +62,11 @@ async def assistant_text_query(
     if not text:
         raise HTTPException(status_code=400, detail="text is required")
 
-    pred = predict_intent_rule_based(text)
-    intent_name, confidence, slots = normalize_intent_result(pred)
-    try:
-        action, ui, message = build_action_and_message(intent_name, text, slots)
-    except Exception:
-        action, ui, message = {}, {}, f"I'm not sure how to handle: {text}"
-
-    response = build_success_response(text, intent_name, confidence, message, action, ui)
-
-    usage = charge_user_tokens(db, user.id, intent_name)
-    if usage:
-        response["token_usage"] = usage
+    session_id = payload.get("session_id") or f"text_user_{user.id}"
+    state_obj = get_session(session_id)
+    state_obj.context["user_id"] = user.id
+    
+    response = finalize_utterance(state_obj, text)
 
     return response
 

@@ -2,16 +2,24 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Mic2, Wifi, WifiOff, Trash2, Radio, Volume2, VolumeX,
-  Download, Send, Keyboard, Sparkles,
+  Download, Send, Keyboard, Sparkles, Bell, AlarmClock, CheckSquare,
 } from "lucide-react";
 import { useAssistant } from "../context/AssistantContext";
+import { useAuth } from "../context/AuthContext";
+import {
+  loadAssistantItems,
+  saveAssistantItems,
+  clearAssistantItemsByType,
+  removeAssistantItem,
+  isItemDue,
+} from "../components/assistantItems";
 
 const EXAMPLES = [
-  "Search for latest AI news",
-  "Play lofi music on YouTube",
+  "Search for AI news",
+  "Play youTube lofi music",
   "What time is it?",
-  "Note: buy groceries",
-  "Remind me to call mom",
+  "Start note mode",
+  "Remind me to call mom at 5 pm",
   "Open GitHub",
 ];
 
@@ -145,6 +153,8 @@ const AiAvatar = () => (
 );
 
 export default function Assistant() {
+  const { user } = useAuth();
+  const assistantUserId = user?.id || user?.email || "guest";
   const {
     connStatus, status, isHolding, wakeEnabled,
     partial, conversation, audioLevel,
@@ -155,6 +165,9 @@ export default function Assistant() {
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const [textInput,  setTextInput]  = useState("");
   const [inputMode,  setInputMode]  = useState(false);
+  const [items, setItems] = useState(() => loadAssistantItems(assistantUserId));
+  const [notify, setNotify] = useState(null);
+  const [activeItemsType, setActiveItemsType] = useState(null);
   const bottomRef  = useRef(null);
   const holdingRef = useRef(false);
   const inputRef   = useRef(null);
@@ -172,6 +185,38 @@ export default function Assistant() {
     utt.rate = 1.05;
     window.speechSynthesis.speak(utt);
   }, [conversation, ttsEnabled]);
+
+  useEffect(() => {
+  const refresh = () => {
+    const current = loadAssistantItems(assistantUserId);
+    setItems(current);
+
+    const dueItem = current.find(isItemDue);
+
+    if (dueItem) {
+      setNotify(dueItem);
+
+      const updated = removeAssistantItem(dueItem.id, assistantUserId);
+      setItems(updated);
+
+      setTimeout(() => {
+        setNotify(null);
+      }, 30000);
+    }
+  };
+
+  refresh();
+
+  const interval = setInterval(refresh, 5000);
+  window.addEventListener("storage", refresh);
+  window.addEventListener("voiceai-items-updated", refresh);
+
+  return () => {
+    clearInterval(interval);
+    window.removeEventListener("storage", refresh);
+    window.removeEventListener("voiceai-items-updated", refresh);
+  };
+}, [assistantUserId]);
 
   const handleKeyDown = useCallback((e) => {
     if (inputMode) return;
@@ -220,6 +265,55 @@ export default function Assistant() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden" style={{ background: "var(--bg)", }} >
+      <AnimatePresence>
+          {notify && !activeItemsType && (
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.96 }}
+              className="fixed top-[118px] sm:top-[96px] left-1/2 lg:left-[calc(224px+((100vw-224px)/2))] -translate-x-1/2 z-[220] w-[calc(100%-32px)] max-w-md rounded-2xl border px-4 py-3"
+              style={{
+                background: "#11121a",
+                borderColor: "rgba(139,92,246,0.85)",
+                boxShadow: "0 24px 90px rgba(0,0,0,0.95)",
+                backdropFilter: "none",
+                WebkitBackdropFilter: "none",
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className="h-9 w-9 rounded-xl grid place-items-center shrink-0"
+                  style={{ background: "rgba(139,92,246,0.15)" }}
+                >
+                  {notify.type === "alarm" ? (
+                    <AlarmClock className="h-4 w-4" style={{ color: "var(--accent-fg)" }} />
+                  ) : (
+                    <Bell className="h-4 w-4" style={{ color: "var(--accent-fg)" }} />
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold" style={{ color: "var(--fg)" }}>
+                    {notify.type === "alarm" ? "Alarm time" : "Reminder"}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--fg-3)" }}>
+                    {notify.title}
+                    {notify.timeText ? ` • ${notify.timeText}` : ""}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setNotify(null)}
+                  className="text-xs"
+                  style={{ color: "var(--fg-4)" }}
+                >
+                  ✕
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-3 border-b"
         style={{ borderColor: "var(--border-s)", background: "var(--bg)" }}>
         <div className="flex items-center gap-3">
@@ -246,6 +340,90 @@ export default function Assistant() {
         </div>
 
         <div className="flex items-center gap-1">
+          <div className="relative flex items-center gap-2 sm:gap-3 mr-1">
+            {[
+              { type: "reminder", icon: Bell,        count: items.filter((x) => x.type === "reminder").length,  label: "Reminders", },
+              { type: "alarm",    icon: AlarmClock,  count: items.filter((x) => x.type === "alarm").length,     label: "Alarms", },
+              { type: "task",     icon: CheckSquare, count: items.filter((x) => x.type === "task").length,      label: "Tasks", },
+            ].map(({ type, icon: Icon, count, label }) => (
+              <button key={type} type="button" title={label}
+                onClick={() =>
+                  setActiveItemsType((current) => (current === type ? null : type))
+                }
+                className="relative h-8 w-8 sm:w-10 grid place-items-center rounded-xl transition-all"
+                style={{
+                  background: activeItemsType === type || count ? "rgba(139,92,246,0.12)" : "transparent",
+                  color:      activeItemsType === type || count ? "#a78bfa" : "var(--fg-4)",
+                  border:     activeItemsType === type || count ? "1px solid rgba(139,92,246,0.25)" : "1px solid transparent",
+                }}
+              >
+                <Icon className="h-5 w-5" />
+
+                {count > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold grid place-items-center" style={{ background: "var(--accent-fg)", color: "#fff",}}>
+                    {count > 9 ? "9+" : count}
+                  </span>
+                )}
+              </button>
+            ))}
+            {activeItemsType && (
+              <div
+                className="fixed sm:absolute top-[118px] sm:top-14 right-4 sm:right-auto sm:left-0 w-[calc(100vw-32px)] sm:w-[320px] rounded-2xl border p-3 z-[300]"
+                style={{ background: "#11121a", borderColor: "var(--border)", boxShadow: "0 18px 60px rgba(0,0,0,0.85)", }}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fg-4)" }} >
+                    {activeItemsType === "reminder" ? "Reminders" : activeItemsType === "alarm" ? "Alarms" : "Tasks"}
+                  </p>
+
+                  <button type="button"
+                    onClick={() => {
+                      const updated = clearAssistantItemsByType(activeItemsType, assistantUserId);
+                      setItems(updated);
+                      setActiveItemsType(null);
+                    }}
+                    className="text-[11px]"
+                    style={{ color: "var(--rose)" }} >
+                    Clear
+                  </button>
+                </div>
+
+                {items.filter((x) => x.type === activeItemsType).length === 0 ? (
+                  <p className="text-xs py-3" style={{ color: "var(--fg-4)" }}>
+                    No {activeItemsType === "reminder" ? "reminders" : activeItemsType === "alarm" ? "alarms" : "tasks"} yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-[260px] overflow-y-auto">
+                    {items .filter((x) => x.type === activeItemsType) .slice() .reverse()
+                      .map((item) => {
+                        const Icon = item.type === "reminder" ? Bell : item.type === "alarm" ? AlarmClock : CheckSquare;
+
+                        return (
+                          <div key={`${item.type}-${item.id}`} className="flex items-start gap-2 rounded-xl p-2" style={{ background: "var(--surface-h)", marginBottom: "5px"}} >
+                            <Icon className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "var(--accent-fg)" }}/>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold" style={{ color: "var(--fg)" }}> {item.title}</p>
+                              <p className="text-xs truncate" style={{ color: "var(--fg-3)" }} >
+                                {item.timeText ? item.timeText: item.type === "task" ? "Task" : ""}
+                              </p>
+                            </div>
+
+                            <button type="button"
+                              onClick={() => {
+                                const updated = removeAssistantItem(item.id, assistantUserId);
+                                setItems(updated);
+                              }}
+                              className="text-xs px-1" style={{ color: "var(--fg-4)" }} title="Remove">
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {[
             { icon: Keyboard,                       active: inputMode,  onClick: toggleInputMode,                                                         title: inputMode ? "Voice mode" : "Type mode" },
             { icon: ttsEnabled ? Volume2 : VolumeX, active: ttsEnabled, onClick: () => { setTtsEnabled(v => !v); window.speechSynthesis.cancel(); },        title: ttsEnabled ? "Mute TTS" : "Enable TTS" },

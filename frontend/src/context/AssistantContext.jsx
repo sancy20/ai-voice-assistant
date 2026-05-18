@@ -1,5 +1,6 @@
 import { createContext, useContext, useRef, useState, useEffect, useCallback } from "react";
 import { emitAction, emitMedia, emitMediaControl, emitResults, emitSearchControl } from "../components/actionBus";
+import { addAssistantItem } from "../components/assistantItems";
 import { API_BASE, AUDIO_WS_URL } from "../config/api";
 import { useAuth } from "./AuthContext";
 
@@ -28,6 +29,7 @@ const SAFE_SITES = {
 
 export function AssistantProvider({ children }) {
   const { user, token, refreshUser } = useAuth();
+  const assistantUserId = user?.id || user?.email || "guest";
   const sessionId = useRef(crypto?.randomUUID?.() || `sess_${Date.now()}`);
 
   const [connStatus, setConnStatus] = useState("Disconnected");
@@ -174,6 +176,16 @@ export function AssistantProvider({ children }) {
 
     if (data.type === "reminder_created") {
       const reminder = data.reminder || {};
+      addAssistantItem(
+        {
+          type: "reminder",
+          id: reminder.id || `reminder_${Date.now()}`,
+          title: reminder.task || "Reminder",
+          timeText: reminder.time_text || reminder.time || "",
+          raw: reminder,
+        },
+        assistantUserId
+      );
       const task = reminder.task || reminder.text || "your reminder";
       const time = reminder.time_text || reminder.time || "";
 
@@ -205,6 +217,31 @@ export function AssistantProvider({ children }) {
       const action  = data.action || {};
       const kind    = action.kind;
       const aData   = action.data || {};
+
+      if (kind === "task_created" && aData.task) {
+        addAssistantItem(
+          {
+            type: "task",
+            id: aData.task.id || `task_${Date.now()}`,
+            title: aData.task.text || "Task",
+            raw: aData.task,
+          },
+          assistantUserId
+        );
+      }
+
+      if (kind === "alarm_created" && aData.alarm) {
+        addAssistantItem(
+          {
+            type: "alarm",
+            id: aData.alarm.id || `alarm_${Date.now()}`,
+            title: "Alarm",
+            timeText: aData.alarm.time || aData.alarm.time_text || "",
+            raw: aData.alarm,
+          },
+          assistantUserId
+        );
+      }
 
       setFinalText(text || message);
       setPartial("");
@@ -251,8 +288,8 @@ export function AssistantProvider({ children }) {
         else if (kind === "search_open_result") { emitSearchControl({ type: "open", index: aData.index || 1 }); emitAction({ text: `Opening result ${aData.index || 1}`, kind: "search", durationMs: 2500 }); }
         else if (kind === "open") {
           const rawTarget = String(aData.target || "") .toLowerCase() .replace(/^open\s+/i, "") .trim(); if ( rawTarget.includes("result") || ["first", "second", "third", "fourth", "fifth"].includes(rawTarget) ) { emitAction({ text: "Please use the search result command again.", kind: "warning", durationMs: 4000, }); return; }
-          const siteAliases = { git: "github", "git hub": "github", openai: "chatgpt", };
-          const target = siteAliases[rawTarget] || rawTarget;
+          const target = rawTarget;
+          if (target.includes(" ") && !target.includes(".")) { emitAction({ text: `"${target}" looks like a search phrase. Showing search results instead.`, kind: "warning", durationMs: 4000, }); window.open( `https://www.google.com/search?q=${encodeURIComponent(target)}`, "_blank", "noopener,noreferrer" ); return; }
           const url = SAFE_SITES[target] 
             || (target.includes(".") ? `https://${target}` : `https://www.${target}.com`);
           emitAction({ text: `Open ${target}`, kind: "open_url", url, durationMs: 14000, });
@@ -286,7 +323,7 @@ export function AssistantProvider({ children }) {
         setStatusSafe("idle");
       }
     }
-  }, [setStatusSafe, addMsg, doIntent, refreshUser]);
+  }, [setStatusSafe, addMsg, doIntent, refreshUser, assistantUserId]);
 
   const connectWS = useCallback(() => {
     if (unmountedRef.current) return;

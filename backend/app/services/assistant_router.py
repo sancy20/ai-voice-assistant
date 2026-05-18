@@ -167,9 +167,31 @@ def build_action_and_message(intent_name: str, transcript: str, slots: dict):
 
     if intent_name == "open":
         target = slots.get("site") or slots.get("app") or transcript
-        clean_target = str(target).replace("open ", "").strip()
+        clean_target = (
+            str(target)
+            .lower()
+            .replace("open ", "", 1)
+            .strip()
+        )
+        clean_target = re.sub(r"\s+", " ", clean_target)
+        
+        if " " in clean_target and "." not in clean_target:
+            preview = build_search_preview(clean_target)
+            return (
+                {
+                    "kind": "search_preview",
+                    "data": preview,
+                },
+                {"widget": "search_preview"},
+                f"Here are the results for {clean_target}."
+            )
         return (
-            {"kind": "open", "data": {"target": clean_target}},
+            {
+                "kind": "open",
+                "data": {
+                    "target": clean_target,
+                },
+            },
             {"widget": "action_card"},
             f"Opening {clean_target}."
         )

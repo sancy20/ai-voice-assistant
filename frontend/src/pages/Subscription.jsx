@@ -76,12 +76,12 @@ export default function Subscription() {
   const upgradePlan = async (planKey) => {
     if (planKey === user?.plan) return;
     if (planKey !== "free") {
-      navigate(`/payment?plan=${planKey}`);
+      navigate(`/payment?type=plan&plan=${planKey}`);
       return;
     }
     setPlanLoading(planKey);
     try {
-      const res = await fetch(`${API_URL}/api/subscription/upgrade`, {
+      const res = await fetch(`${API_URL}/subscription/upgrade`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ plan: planKey }),
@@ -93,17 +93,7 @@ export default function Subscription() {
   };
 
   const buyPack = async (tokens) => {
-    setPackLoading(tokens);
-    try {
-      const res = await fetch(`${API_URL}/api/subscription/credits/purchase`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tokens }),
-      });
-      if (res.ok) { await refreshUser(); showToast(`+${tokens} tokens added`); }
-      else showToast("Purchase failed", false);
-    } catch { showToast("Purchase failed", false); }
-    setPackLoading(null);
+    navigate(`/payment?type=tokens&tokens=${tokens}`);
   };
 
   const currentPlan = user?.plan    ?? "free";
