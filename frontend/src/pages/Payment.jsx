@@ -324,12 +324,12 @@ export default function Payment() {
   /* ── Success screen ── */
   if (success) {
     return (
-      <div className="min-h-full flex flex-col items-center justify-center px-4 py-16">
+      <div className="min-h-full flex flex-col items-center justify-center px-4 pt-32 pb-16 lg:pt-40">
         <motion.div
           initial={{ scale: 0.9, opacity: 0, y: 16 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 280, damping: 22 }}
-          className="max-w-sm w-full text-center space-y-6">
+          className="max-w-sm w-full text-center space-y-6 -translate-y-4 lg:translate-y-6">
 
           <div style={{ display: "flex", justifyContent: "center", width: "100%", marginBottom: "28px" }}>
             <motion.div

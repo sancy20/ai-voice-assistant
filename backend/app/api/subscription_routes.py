@@ -39,6 +39,11 @@ def apply_plan(user: User, plan: str):
     if plan not in VALID_PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan")
 
+    if user.role == "admin":
+        user.plan = "unlimited"
+        user.credits = 999999
+        return
+    
     user.plan = plan
     user.credits = PLAN_TOKENS[plan]
 
@@ -46,6 +51,11 @@ def apply_plan(user: User, plan: str):
 def apply_token_purchase(user: User, tokens: int):
     if tokens not in CREDIT_PACKAGES:
         raise HTTPException(status_code=400, detail="Invalid token package")
+    
+    if user.role == "admin":
+        user.plan = "unlimited"
+        user.credits = 999999
+        return
 
     user.credits = (user.credits or 0) + tokens
 
@@ -147,6 +157,14 @@ def confirm_mock_payment(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    
+    if user.role == "admin":
+        user.plan = "unlimited"
+        user.credits = 999999
+        db.commit()
+        db.refresh(user)
+        return user
+
     validate_checkout(payload)
 
     if payload.purchase_type == "plan":
@@ -157,6 +175,26 @@ def confirm_mock_payment(
 
     else:
         raise HTTPException(status_code=400, detail="Invalid purchase type")
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+@router.post("/cancel", response_model=UserOut)
+def cancel_subscription(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    
+    if user.role == "admin":
+        user.plan = "unlimited"
+        user.credits = 999999
+        db.commit()
+        db.refresh(user)
+        return user
+
+    user.plan = "free"
+    user.credits = 10
 
     db.commit()
     db.refresh(user)

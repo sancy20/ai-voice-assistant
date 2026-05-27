@@ -41,9 +41,9 @@ const MIC_SVG = (
 
 function NavItem({ to, icon: Icon, label, collapsed, onClick, badgeCount = 0 }) {
   return (
-    <NavLink to={to} end={to === "/"} onClick={onClick}
+    <NavLink to={to} end={to === "/"} onClick={onClick} title={collapsed ? label : undefined}
       className={({ isActive }) =>
-        `relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-all duration-150 select-none${isActive ? "" : " hover:bg-[var(--surface-h)]"}`
+        `relative flex items-center rounded-lg py-2 text-sm transition-colors duration-200 select-none overflow-hidden ${collapsed ? "justify-center px-0" : "gap-2.5 px-2.5"} ${isActive ? "" : "hover:bg-[var(--surface-h)]"}`
       }>
       {({ isActive }) => (
         <>
@@ -54,12 +54,12 @@ function NavItem({ to, icon: Icon, label, collapsed, onClick, badgeCount = 0 }) 
                 background: "var(--accent-2)",
                 boxShadow: "inset 2.5px 0 0 var(--accent)",
               }}
-              transition={{ type: "spring", stiffness: 400, damping: 34 }}
+              transition={{ type: "tween", duration: 0.18, ease: [0.16, 1, 0.3, 1],}}
             />
           )}
-          <div className="relative shrink-0">
+          <div className="relative z-10 grid h-4 w-4 shrink-0 place-items-center">
             <Icon
-              className="relative h-4 w-4 transition-colors"
+              className="h-4 w-4 transition-colors duration-200"
               style={{ color: isActive ? "var(--accent-fg)" : "var(--fg-3)" }}
             />
 
@@ -76,29 +76,33 @@ function NavItem({ to, icon: Icon, label, collapsed, onClick, badgeCount = 0 }) 
             )}
           </div>
 
-          <AnimatePresence>
-            <span
-              className="relative whitespace-nowrap flex-1"
-              style={{
-                color: isActive ? "var(--fg)" : "var(--fg-3)",
-                fontWeight: isActive ? 500 : 400,
-              }}
+          {!collapsed && (
+            <motion.div key="label" initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }} transition={{ duration: 0.16 }}
+              className="relative z-10 flex min-w-0 flex-1 items-center"
             >
-              {label}
-            </span>
-
-            {badgeCount > 0 && !collapsed && (
               <span
-                className="relative ml-auto min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold grid place-items-center"
+                className="truncate whitespace-nowrap"
                 style={{
-                  background: "var(--accent-fg)",
-                  color: "#fff",
+                  color: isActive ? "var(--fg)" : "var(--fg-3)",
+                  fontWeight: isActive ? 500 : 400,
                 }}
               >
-                {badgeCount > 9 ? "9+" : badgeCount}
+                {label}
               </span>
-            )}
-          </AnimatePresence>
+
+              {badgeCount > 0 && (
+                <span
+                  className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold grid place-items-center"
+                  style={{
+                    background: "var(--accent-fg)",
+                    color: "#fff",
+                  }}
+                >
+                  {badgeCount > 9 ? "9+" : badgeCount}
+                </span>
+              )}
+            </motion.div>
+          )}
         </>
       )}
     </NavLink>
@@ -159,8 +163,8 @@ export default function Layout({ children }) {
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
       <motion.aside
         animate={{ width: collapsed ? 56 : 224 }}
-        transition={{ type: "spring", stiffness: 320, damping: 32 }}
-        className="hidden lg:flex flex-col shrink-0 h-full border-r overflow-hidden"
+        transition={{ type: "tween", duration: 0.22, ease: [0.16, 1, 0.3, 1], }}
+        className="hidden lg:flex flex-col shrink-0 h-full border-r overflow-hidden will-change-[width]"
         style={{ borderColor: "var(--border-s)", background: "var(--bg-subtle)" }}>
         <div className="flex items-center gap-2.5 px-3 py-4 border-b"
           style={{ borderColor: "var(--border-s)" }}>
@@ -168,26 +172,26 @@ export default function Layout({ children }) {
             style={{ background: "var(--accent-grad)" }}>
             {MIC_SVG}
           </div>
-          <AnimatePresence>
-            {!collapsed && (
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-sm font-bold tracking-tight whitespace-nowrap" style={{ color: "var(--fg)" }}>
-                  VoiceAI
-                </span>
-                <span
-                  className="h-1.5 w-1.5 rounded-full shrink-0"
-                  title={connStatus}
-                  style={{
-                    background: isConnected ? "var(--green)" : isReconnecting ? "#fbbf24" : "var(--rose)",
-                    animation: isConnected ? "pulse-dot 2.4s ease-in-out infinite" : isReconnecting ? "pulse-dot 0.9s ease-in-out infinite" : "none",
-                  }}
-                />
-              </div>
-            )}
-          </AnimatePresence>
+          <motion.div initial={false}
+            animate={{ opacity: collapsed ? 0 : 1, x: collapsed ? -8 : 0, width: collapsed ? 0 : "auto",}}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1],}}
+            className="flex items-center gap-2 min-w-0 overflow-hidden"
+          >
+            <span className="text-sm font-bold tracking-tight whitespace-nowrap" style={{ color: "var(--fg)" }}>
+              VoiceAI
+            </span>
+            <span
+              className="h-1.5 w-1.5 rounded-full shrink-0"
+              title={connStatus}
+              style={{
+                background: isConnected ? "var(--green)" : isReconnecting ? "#fbbf24" : "var(--rose)",
+                animation: isConnected ? "pulse-dot 2.4s ease-in-out infinite" : isReconnecting ? "pulse-dot 0.9s ease-in-out infinite" : "none",
+              }}
+            />
+          </motion.div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
+        <nav className="flex-1 overflow-x-hidden overflow-y-auto p-2 space-y-0.5">
           {user?.is_admin && <NavItem {...NAV_ADMIN} collapsed={collapsed} />}
           {NAV.map(n => ( <NavItem key={n.to} {...n} collapsed={collapsed} badgeCount={n.to === "/assistant" ? assistantItemCount : 0} /> ))}
           <div className="my-2 border-t" style={{ borderColor: "var(--border-s)" }} />
@@ -367,16 +371,9 @@ export default function Layout({ children }) {
         )}
       </AnimatePresence>
       <main className={`flex-1 min-w-0 pt-[var(--topbar-h)] ${ location.pathname === "/assistant" ? "pb-[var(--bottomnav-h)]" : "pb-[calc(var(--bottomnav-h)+env(safe-area-inset-bottom,0px)+32px)]" } lg:pt-0 lg:pb-0 relative ${ location.pathname === "/assistant" ? "overflow-hidden" : "overflow-y-auto" }`} >
-        <AnimatePresence mode="wait">
-          <motion.div key={location.pathname}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className={location.pathname === "/assistant" ? "h-full" : "min-h-full"}>
-            {children}
-          </motion.div>
-        </AnimatePresence>
+        <div className={location.pathname === "/assistant" ? "h-full min-h-0" : "min-h-full"}>
+          {children}
+        </div>
       </main>
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 flex border-t"
         style={{

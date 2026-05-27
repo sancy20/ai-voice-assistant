@@ -130,6 +130,8 @@ export default function Profile() {
   const [changingPw,  setChangingPw]  = useState(false);
   const [uploadingAv, setUploadingAv] = useState(false);
   const [toast,       setToast]       = useState(null);
+  const [cancelingSub, setCancelingSub] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   const [notifSound,  setNotifSound]  = useState(() => localStorage.getItem("notif_sound")  !== "false");
   const [notifBanner, setNotifBanner] = useState(() => localStorage.getItem("notif_banner") !== "false");
@@ -151,6 +153,42 @@ export default function Profile() {
 
   const handleSound  = (v) => { setNotifSound(v);  localStorage.setItem("notif_sound",  String(v)); };
   const handleBanner = (v) => { setNotifBanner(v); localStorage.setItem("notif_banner", String(v)); };
+
+  const handleCancelSubscription = async () => {
+    if (user?.is_admin || user?.role === "admin") {
+      showToast("Admin account cannot be downgraded", false);
+      return;
+    }
+
+    if (plan === "free") {
+      showToast("You are already on the Free plan", false);
+      return;
+    }
+
+    setCancelingSub(true);
+
+    try {
+      const res = await fetch(`${API}/subscription/cancel`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.detail || "Failed to cancel subscription", false);
+        return;
+      }
+
+      await refreshUser();
+      showToast("Subscription cancelled. You are now on Free plan.");
+    } catch {
+      showToast("Cannot connect to server", false);
+    } finally {
+      setCancelingSub(false);
+    }
+  };
 
   const saveProfile = async (e) => {
     e.preventDefault();
@@ -207,6 +245,80 @@ export default function Profile() {
       <div className="w-full max-w-[960px]">
 
         <AnimatePresence>{toast && <Toast {...toast} />}</AnimatePresence>
+
+        <AnimatePresence>
+          {showCancelModal && (
+            <motion.div className="fixed inset-0 z-[300] flex items-center justify-center px-4" 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              {/* Overlay */}
+              <motion.div
+                className="absolute inset-0"
+                style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", }}
+                onClick={() => {
+                  if (!cancelingSub) setShowCancelModal(false);
+                }}
+              />
+
+              {/* Modal card */}
+              <motion.div initial={{ opacity: 0, scale: 0.94, y: 18 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.94, y: 18 }} transition={{ type: "spring", stiffness: 320, damping: 26 }}
+                className="relative w-full max-w-md rounded-3xl border p-6 shadow-2xl"
+                style={{ background: "#11121a", borderColor: "rgba(239,68,68,0.28)", boxShadow: "0 30px 90px rgba(0,0,0,0.75)", }} >
+                <div className="flex justify-center mb-4">
+                  <div className="grid h-14 w-14 place-items-center rounded-2xl"
+                    style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.25)", marginBottom: "10px"}}>
+                    <CreditCard className="h-6 w-6" style={{ color: "var(--rose)" }} />
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <h3 className="text-xl font-bold" style={{ color: "var(--fg)" }}>
+                    Cancel subscription?
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6" style={{ color: "var(--fg-3)" }}>
+                    Your current <span className="font-semibold capitalize" style={{ color: "var(--fg)" }}>{plan}</span> plan
+                    will be cancelled and your account will return to the Free plan.
+                  </p>
+                </div>
+
+                <div
+                  className="mt-5 rounded-2xl border p-4 text-sm"
+                  style={{ background: "rgba(239,68,68,0.06)", borderColor: "rgba(239,68,68,0.18)", color: "var(--fg-3)", marginTop: "10px"}} >
+                  <p className="font-semibold mb-2" style={{ color: "var(--fg)" }}>
+                    After cancellation:
+                  </p>
+
+                  <ul className="space-y-1.5 text-xs">
+                    <li>• Your plan will change to Free</li>
+                    <li>• Your token balance will reset to 10 tokens</li>
+                    <li>• You can upgrade again anytime</li>
+                  </ul>
+                </div>
+
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3" style={{marginTop: "15px"}}>
+                  <button type="button" disabled={cancelingSub} onClick={() => setShowCancelModal(false)}
+                    className="rounded-xl border px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-60"
+                    style={{ background: "var(--surface-h)", borderColor: "var(--border)",  color: "var(--fg-2)", }} >
+                    Keep plan
+                  </button>
+
+                  <button type="button" disabled={cancelingSub} onClick={handleCancelSubscription}
+                    className="rounded-xl px-4 py-3 text-sm font-bold transition-opacity disabled:opacity-60"
+                    style={{ background: "var(--rose)", color: "white", }} >
+                    {cancelingSub ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Cancelling...
+                      </span>
+                    ) : (
+                      "Cancel subscription"
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Account card */}
         <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
@@ -428,15 +540,30 @@ export default function Profile() {
                   </div>
                 )}
 
-                <button onClick={() => navigate("/subscription")}
-                  className="w-full flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-sm transition-colors hover:bg-[var(--surface-h)]"
-                  style={{ background: "var(--surface-h)", borderColor: "var(--border-s)", color: "var(--fg-2)" }}>
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-3.5 w-3.5" style={{ color: "var(--fg-4)" }} />
-                    Manage subscription
-                  </div>
-                  <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--fg-4)" }} />
-                </button>
+                <div className="space-y-2">
+                  <button onClick={() => navigate("/subscription")}
+                    className="w-full flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-sm transition-colors hover:bg-[var(--surface-h)]"
+                    style={{ background: "var(--surface-h)", borderColor: "var(--border-s)", color: "var(--fg-2)" }}>
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-3.5 w-3.5" style={{ color: "var(--fg-4)" }} />
+                      Change plan / buy tokens
+                    </div>
+                    <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--fg-4)" }} />
+                  </button>
+                  {!isUnlimited && plan !== "free" && (
+                    <button type="button" onClick={() => setShowCancelModal(true)} disabled={cancelingSub}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-60"
+                      style={{ background: "var(--rose-2)", borderColor: "rgba(239,68,68,0.25)", color: "var(--rose)", marginTop: "10px"}} >
+                      Cancel subscription
+                    </button>
+                  )}
+
+                  {(user?.is_admin || user?.role === "admin") && (
+                    <p className="text-[11px]" style={{ color: "var(--fg-4)" }}>
+                      Admin accounts have unlimited access and cannot be downgraded.
+                    </p>
+                  )}
+                </div>
               </div>
             </Section>
 
