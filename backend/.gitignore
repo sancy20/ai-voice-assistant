@@ -18,6 +18,5 @@ data/
 
 create_tables.py
 test_db.py
-db_models.py
 evaluate_stt.py
 measure_latency.py
